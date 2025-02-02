@@ -1,6 +1,7 @@
 import requests
 import time
 import os
+from dotenv import load_dotenv
 
 class InstagramAPI:
     def __init__(self, app_id, app_secret, short_lived_token, instagram_user_id):
@@ -8,20 +9,6 @@ class InstagramAPI:
         self.app_secret = app_secret
         self.access_token = short_lived_token
         self.instagram_user_id = instagram_user_id
-
-    def short_to_long_lived_token(self):
-        url = "https://graph.instagram.com/access_token"
-        params = {
-            'grant_type': 'ig_exchange_token',
-            'client_secret': self.app_secret,
-            'access_token': self.access_token
-        }
-        response = requests.get(url, params=params)
-        if response.status_code == 200:
-            self.access_token = response.json().get('access_token')
-            print(f"New long-lived token expires in {response.json().get('expires_in')} seconds.")
-        else:
-            print(f"Error generating long-lived token: {response.status_code}, {response.text}")
 
     def refresh_access_token(self):
         url = "https://graph.facebook.com/v20.0/oauth/access_token"
@@ -38,38 +25,7 @@ class InstagramAPI:
         else:
             print(f"Error refreshing token: {response.status_code}, {response.text}")
 
-    def get_user_media(self, username, download_folder="pics"):
-        url = f"https://graph.facebook.com/v20.0/{self.instagram_user_id}"
-        params = {
-            "fields": f"business_discovery.username({username}){{followers_count,media_count,media{{media_url}},follows_count}}",
-            "access_token": self.access_token
-        }
-        response = requests.get(url, params=params)
-        if response.status_code == 200:
-            data = response.json()
-            print("User data retrieved:", data)
-
-            os.makedirs(download_folder, exist_ok=True)
-
-            for idx, media in enumerate(data['business_discovery']['media']['data']):
-                image_url = media['media_url']
-                file_path = os.path.join(download_folder, f"image_{idx + 1}.jpg")
-                self.download_image(image_url, file_path)
-        else:
-            print(f"Error fetching media: {response.status_code}, {response.text}")
-
-    @staticmethod
-    def download_image(url, file_path):
-        response = requests.get(url)
-        if response.status_code == 200:
-            with open(file_path, 'wb') as f:
-                f.write(response.content)
-            print(f"Image saved: {file_path}")
-        else:
-            print(f"Failed to download image from {url}")
-
     def upload_and_publish_pic(self, image_url, caption="Automated post via Instagram API"):
-        # Step 1: Create media object
         url = f"https://graph.facebook.com/v20.0/{self.instagram_user_id}/media"
         params = {
             "image_url": image_url,
@@ -85,7 +41,11 @@ class InstagramAPI:
             print(f"Error creating media object: {response.status_code}, {response.text}")
             return
 
-        # Step 2: Publish media object
+        # Wait for processing
+        print("Waiting for media processing...")
+        time.sleep(10)
+
+        # Publish media
         publish_url = f"https://graph.facebook.com/v20.0/{self.instagram_user_id}/media_publish"
         publish_params = {
             "creation_id": media_object_id,
@@ -98,21 +58,74 @@ class InstagramAPI:
         else:
             print(f"Error publishing media: {publish_response.status_code}, {publish_response.text}")
 
+    def upload_and_publish_video(self, video_url, caption="Automated video post via Instagram API"):
+        # Step 1: Create video media object
+        url = f"https://graph.facebook.com/v20.0/{self.instagram_user_id}/media"
+        params = {
+            "video_url": video_url,
+            "caption": caption,
+            "media_type": "REELS",
+            "access_token": self.access_token
+        }
+        response = requests.post(url, params=params)
+
+        if response.status_code == 200:
+            media_object_id = response.json().get('id')
+            print(f"Video media object created with ID: {media_object_id}")
+        else:
+            print(f"Error creating video media object: {response.status_code}, {response.text}")
+            return
+
+        # Step 2: Check status of the video upload
+        print("Waiting for video processing...")
+        while True:
+            status_url = f"https://graph.facebook.com/v20.0/{media_object_id}?fields=status_code"
+            status_params = {"access_token": self.access_token}
+            status_response = requests.get(status_url, params=status_params)
+
+            if status_response.status_code == 200:
+                status = status_response.json().get("status_code")
+                if status == "FINISHED":
+                    print("Video processing complete!")
+                    break
+                else:
+                    print("Video is still processing... Checking again in 10 seconds.")
+                    time.sleep(10)
+            else:
+                print(f"Error checking video status: {status_response.status_code}, {status_response.text}")
+                return
+
+        # Step 3: Publish the video
+        publish_url = f"https://graph.facebook.com/v20.0/{self.instagram_user_id}/media_publish"
+        publish_params = {
+            "creation_id": media_object_id,
+            "access_token": self.access_token
+        }
+        publish_response = requests.post(publish_url, params=publish_params)
+
+        if publish_response.status_code == 200:
+            print("Video successfully published!")
+        else:
+            print(f"Error publishing video: {publish_response.status_code}, {publish_response.text}")
+
 # Usage Example
 if __name__ == "__main__":
-    app_id = '861942379371299'
-    app_secret = '760999b7887a59c7bcb6a642e83d9c9a'
-    short_lived_token = 'EAAMP7plW2yMBO7eFc3VMgi9awrZB1gI6OV8AuzDS2ir1UW5GWjutCiqbEfj7iVBmxPY8ug4CMCv8TeyOSFZA1Av3Q4ZC25P6qg1ZBeNiZB6QGvxYLoW3EpMTJSsDZB7g1zdxTo5TmOwzSb1FYabwDyFpu8z0dTBZAZAcZATpKj9ktEiHqb1PnxIZC4ZClPSXZAk3O1MM'
-    instagram_user_id = "17841469360862189"
+    load_dotenv()
 
-    instagram_api = InstagramAPI(app_id, app_secret, short_lived_token, instagram_user_id)
+    APP_ID = os.getenv("APP_ID")
+    APP_SECRET = os.getenv("APP_SECRET")
+    ACCESS_TOKEN = os.getenv("ACCESS_TOKEN")
+    INSTAGRAM_USER_ID = os.getenv("INSTAGRAM_USER_ID")
+    
+
+    instagram_api = InstagramAPI(APP_ID, APP_SECRET, ACCESS_TOKEN, INSTAGRAM_USER_ID)
 
     # Refresh access token
     instagram_api.refresh_access_token()
-
-    # Fetch and download user media
-    instagram_api.get_user_media(username="theaubjcc")
-
+    
     # Upload and publish a new post
-    test_image_url = "https://i.imgur.com/q4EPE4Q.jpeg"
-    instagram_api.upload_and_publish_pic(test_image_url, caption="This is an automated test post!")
+    #test_image_url = "https://i.imgur.com/q4EPE4Q.jpeg"
+    #instagram_api.upload_and_publish_pic(test_image_url, caption="This is an automated test post!")
+    # Upload and publish a new video
+    test_video_url = "https://www.dropbox.com/scl/fi/g5qxeicprnvrtp6143zte/generated_video.mp4?rlkey=05cjmy1bpmnc1p1f16w6ae9j4&st=5dnuxyfs&raw=1"
+    instagram_api.upload_and_publish_video(test_video_url, caption="This is an automated video post!")
