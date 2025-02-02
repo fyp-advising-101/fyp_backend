@@ -43,6 +43,7 @@ class ImagineArtAI:
 # ====== USAGE ======
 if __name__ == "__main__":
     # Vyro AI API Key
+    load_dotenv()
     IMAGINE_API_KEY = os.getenv("IMAGINE_API_KEY")
 
     # Initialize Vyro AI API
