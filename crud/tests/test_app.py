@@ -1,15 +1,21 @@
 import os, sys
 import pytest
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from flask import json
 from datetime import datetime, timedelta
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from crud.app import app as flask_app
 from shared.database import engine, SessionLocal
 from shared.models.base import Base
 from shared.models.jobScheduler import JobScheduler
 from shared.models.scrapeTarget import ScrapeTarget
 
-# Fixtures provided by the user code
+# Ensure app context is active for tests
+@pytest.fixture(scope='session', autouse=True)
+def app_context(app):
+    with app.app_context():
+        yield
+
 @pytest.fixture(scope='session')
 def app():
     """
@@ -28,16 +34,6 @@ def client(app):
     Provides a test client for the Flask application.
     """
     return app.test_client()
-
-@pytest.fixture
-def db_session():
-    """
-    Creates a new database session for a test.
-    """
-    session = SessionLocal()
-    yield session
-    session.close()
-
 
 # ---------------------------
 # Tests for JobScheduler APIs

@@ -119,6 +119,7 @@ def add_scrape_target():
             name=data['name'],
             url=data['url'],
             type=data['type'],
+            frequency=data['frequency'],
             created_at=datetime.datetime.now()
         )
         db_session.add(new_target)
@@ -141,6 +142,7 @@ def edit_scrape_target(target_id):
         target.name = data.get('name', target.name)
         target.url = data.get('url', target.url)
         target.type = data.get('type', target.type)
+        target.frequency = data.get('frequency', target.type)
 
         db_session.commit()
         return jsonify({"message": "Scrape target updated successfully"})
@@ -177,6 +179,7 @@ def get_scrape_target(target_id):
         "name": target.name,
         "url": target.url,
         "type": target.type,
+        "frequency" : target.frequency,
         "created_at": target.created_at.strftime("%Y-%m-%d %H:%M:%S")
     })
 
@@ -191,6 +194,7 @@ def get_all_scrape_targets():
             "name": target.name,
             "url": target.url,
             "type": target.type,
+            "frequency" : target.frequency,
             "created_at": target.created_at.strftime("%Y-%m-%d %H:%M:%S")
         } for target in targets
     ])
