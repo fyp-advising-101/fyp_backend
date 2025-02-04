@@ -2,21 +2,34 @@ import requests
 import time
 import os
 from dotenv import load_dotenv
+
 class ImagineArtAI:
-    def __init__(self, api_key):
+    def __init__(self, api_key: str):
+        """
+        Initialize the ImagineArtAI client.
+
+        Args:
+            api_key (str): Your API key for ImagineArt AI.
+        """
         self.api_key = api_key
         self.base_url = "https://api.vyro.ai/v2"
 
-    def generate_image(self, prompt, style, model="stable-diffusion-xl", width=512, height=512, steps=50, guidance_scale=7.5):
-        """
-        Sends a request to Vyro AI's API to generate an image using multipart/form-data.
-        """
+    def generate_image(
+        self,
+        prompt: str,
+        style: str,
+        model: str = "stable-diffusion-xl",
+        width: int = 512,
+        height: int = 512,
+        steps: int = 50,
+        guidance_scale: float = 7.5
+    ) :
         url = f"{self.base_url}/image/generations"
         headers = {
             "Authorization": f"Bearer {self.api_key}"
         }
-        
-        # API expects multipart/form-data
+
+        # Prepare payload for multipart/form-data
         payload = {
             "model": (None, model),
             "prompt": (None, prompt),
@@ -29,16 +42,33 @@ class ImagineArtAI:
             "seed": (None, "-1")
         }
 
-        response = requests.post(url, headers=headers, files=payload)
+        try:
+            response = requests.post(url, headers=headers, files=payload)
+        except Exception as e:
+            error_msg = f"Request error: {e}"
+            print(error_msg)
+            return {"error": error_msg}, None
+
+        # Attempt to parse the response as JSON
+        try:
+            response_data = response.json()
+        except Exception:
+            response_data = {"error": "Failed to parse JSON response", "status_code": response.status_code}
+
         if response.status_code == 200:
             image_path = "generated_image.png"
-            with open(image_path, "wb") as file:
-                file.write(response.content)
-            print(f"Image saved: {image_path}")
-            return image_path
+            try:
+                with open(image_path, "wb") as file:
+                    file.write(response.content)
+                print(f"Image saved: {image_path}")
+                return response_data, image_path
+            except Exception as e:
+                error_msg = f"Error saving image: {e}"
+                print(error_msg)
+                return response_data, None
         else:
             print(f"Error: {response.status_code}, {response.text}")
-            return None
+            return response_data, None
 
 # ====== USAGE ======
 if __name__ == "__main__":
