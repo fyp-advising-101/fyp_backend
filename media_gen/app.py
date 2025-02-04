@@ -38,12 +38,10 @@ def generate_image_route():
     if not context or not style:
         return jsonify({"error": "Missing required parameters: 'context' and 'style'"}), 400
     
-    print(OPENAI_API_KEY)
-
-    chatgpt = ChatGptApi(api_key=OPENAI_API_KEY, model="gpt-4o")
+    chatgpt = ChatGptApi(api_key=OPENAI_API_KEY, model="gpt-4o-mini")
 
     generated_prompt = chatgpt.generate_image_generation_prompt(context)
-
+   
     if not generated_prompt:
         return jsonify({"error": "Failed to generate a prompt from the context"}), 500
 

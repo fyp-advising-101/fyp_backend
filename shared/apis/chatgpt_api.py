@@ -1,5 +1,5 @@
-import openai
 from openai import OpenAI
+
 
 class ChatGptApi:
     def __init__(self, api_key: str, model: str = "gpt-4o"):
@@ -10,9 +10,9 @@ class ChatGptApi:
             api_key (str): Your OpenAI API key.
             model (str, optional): The ChatGPT model to use (default is "gpt-4").
         """
-        self.api_key = api_key
         self.model = model
-        openai.api_key = self.api_key
+        self.api_key = api_key
+        self.client = OpenAI(api_key=api_key)
 
     def generate_image_generation_prompt(self, context: str) -> str:
         """
@@ -33,15 +33,13 @@ class ChatGptApi:
         )
 
         try:
-            response = OpenAI().completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-            )
-            generated_prompt = response.choices[0].message
-            print(generated_prompt)
+            completion = self.client.chat.completions.create(model=self.model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.7)
+            generated_prompt = completion.choices[0].message.content.strip()
             return generated_prompt
         except Exception as e:
             print(f"Error generating image prompt: {e}")
