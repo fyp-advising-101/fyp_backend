@@ -1,8 +1,9 @@
 import requests
 import time
 import os
+from azure.identity import DefaultAzureCredential
+from azure.keyvault.secrets import SecretClient
 
-from dotenv import load_dotenv
 class NovitaAI:
     def __init__(self, api_key):
         self.api_key = api_key
@@ -98,9 +99,10 @@ class NovitaAI:
 
 # ====== USAGE ======
 if __name__ == "__main__":
-    # Novita AI API Key
-    load_dotenv()
-    NOVITA_API_KEY = os.getenv("NOVITA_API_KEY")
+    VAULT_URL = "https://advising101vault.vault.azure.net"
+    credential = DefaultAzureCredential()
+    client = SecretClient(vault_url=VAULT_URL, credential=credential)
+    NOVITA_API_KEY = client.get_secret("NOVITA-API-KEY").value
     
     # Initialize Novita AI API
     novita = NovitaAI(NOVITA_API_KEY)

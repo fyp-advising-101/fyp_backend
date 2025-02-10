@@ -2,6 +2,8 @@ import requests
 import time
 import os
 from dotenv import load_dotenv
+from azure.identity import DefaultAzureCredential
+from azure.keyvault.secrets import SecretClient
 
 class InstagramAPI:
     def __init__(self, app_id, app_secret, short_lived_token, instagram_user_id):
@@ -110,12 +112,14 @@ class InstagramAPI:
 
 # Usage Example
 if __name__ == "__main__":
-    load_dotenv()
+    VAULT_URL = "https://advising101vault.vault.azure.net"
+    credential = DefaultAzureCredential()
+    client = SecretClient(vault_url=VAULT_URL, credential=credential)
 
-    APP_ID = os.getenv("APP_ID")
-    APP_SECRET = os.getenv("APP_SECRET")
-    ACCESS_TOKEN = os.getenv("ACCESS_TOKEN")
-    INSTAGRAM_USER_ID = os.getenv("INSTAGRAM_USER_ID")
+    APP_ID = client.get_secret("APP-ID").value
+    APP_SECRET = client.get_secret("APP-SECRET").value
+    ACCESS_TOKEN = client.get_secret("INSTAGRAM-ACCESS-TOKEN").value
+    INSTAGRAM_USER_ID = client.get_secret("INSTAGRAM-USER-ID").value
     
 
     instagram_api = InstagramAPI(APP_ID, APP_SECRET, ACCESS_TOKEN, INSTAGRAM_USER_ID)

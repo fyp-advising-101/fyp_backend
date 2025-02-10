@@ -9,4 +9,5 @@ class ScrapeTarget(Base):
     url = Column(String(255), nullable=False)
     type = Column(String(255), nullable=False)
     frequency = Column(Float, nullable=False)
+    category = Column(String(255))
     created_at = Column(DateTime)

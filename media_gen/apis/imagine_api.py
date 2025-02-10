@@ -1,7 +1,8 @@
 import requests
 import time
 import os
-from dotenv import load_dotenv
+from azure.identity import DefaultAzureCredential
+from azure.keyvault.secrets import SecretClient
 
 class ImagineArtAI:
     def __init__(self, api_key: str):
@@ -72,9 +73,11 @@ class ImagineArtAI:
 
 # ====== USAGE ======
 if __name__ == "__main__":
-    # Vyro AI API Key
-    load_dotenv()
-    IMAGINE_API_KEY = os.getenv("IMAGINE_API_KEY")
+
+    VAULT_URL = "https://advising101vault.vault.azure.net"
+    credential = DefaultAzureCredential()
+    client = SecretClient(vault_url=VAULT_URL, credential=credential)
+    IMAGINE_API_KEY = client.get_secret("IMAGINE-API-KEY").value
 
     # Initialize Vyro AI API
     imagine = ImagineArtAI(IMAGINE_API_KEY)
