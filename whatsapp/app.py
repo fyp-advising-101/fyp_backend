@@ -4,6 +4,8 @@ import logging
 from azure.identity import DefaultAzureCredential
 from azure.keyvault.secrets import SecretClient
 import os
+from chromadb import HttpClient
+import openai
 
 app = Flask(__name__)
 
@@ -12,7 +14,10 @@ credential = DefaultAzureCredential()
 client = SecretClient(vault_url=VAULT_URL, credential=credential)
 WEBHOOK_VERIFY_TOKEN = client.get_secret("WHATSAPP-WEBHOOK-VERIFY-TOKEN").value
 GRAPH_API_TOKEN = client.get_secret("INSTAGRAM-ACCESS-TOKEN").value
+openai.api_key = openai_api_key = client.get_secret('OPENAI-API-KEY').value
 
+client = HttpClient(host='vectordb.bluedune-c06522b4.uaenorth.azurecontainerapps.io', port=80)
+collection = client.get_collection(name="aub_embeddings")
 
 logging.basicConfig(
     level=logging.DEBUG,  # Set the logging level
@@ -20,6 +25,9 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",  # Define the date format
 )
 
+def get_openai_embedding(text):
+    response = openai.embeddings.create(input=text, model="text-embedding-3-large")
+    return response.data[0].embedding
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
@@ -31,8 +39,8 @@ def webhook():
     if message and message.get("type") == "text":
         business_phone_number_id = data["entry"][0]["changes"][0]["value"]["metadata"]["phone_number_id"]
         
-        # Send message to gpt # TO DO
-        #requests.post("https://marmalade-deciduous-router.glitch.me/mock_chatbot", json={"payload_from_user": data})
+        # Send message to gpt
+        chatbot_response = get_response_from_gpt(data)
         
         # Mark message as read
         requests.post(
@@ -45,46 +53,54 @@ def webhook():
             }
         )
     
+    
+    if 'messages' in data['entry'][0]['changes'][0]['value']:
+      business_phone_number_id = data.get("entry", [{}])[0].get("changes", [{}])[0].get("value", {}).get("metadata", {}).get("phone_number_id")
+      message = data.get("entry", [{}])[0].get("changes", [{}])[0].get("value", {}).get("messages", [{}])[0]
+      user_number = data['entry'][0]['changes'][0]['value']['messages'][0]['from']
+      # Send reply
+      requests.post(
+          f"https://graph.facebook.com/v18.0/{business_phone_number_id}/messages",
+          headers={"Authorization": f"Bearer {GRAPH_API_TOKEN}"},
+          json={
+              "messaging_product": "whatsapp",
+              "to": user_number,
+              "text": {"body": chatbot_response},
+              "context": {"message_id": message["id"]}
+          }
+      )
+    
     return "Message Received", 200
 
-@app.route("/mock_chatbot", methods=["POST"])
-def mock_chatbot():
-    data = request.get_json()
-    message = data.get("payload_from_user", {}).get("entry", [{}])[0].get("changes", [{}])[0].get("value", {}).get("messages", [{}])[0]
-    message_text = message.get("text", {}).get("body", "")
+def get_response_from_gpt(data):
+    message = data.get("entry", [{}])[0].get("changes", [{}])[0].get("value", {}).get("messages", [{}])[0]
+    message_text = message.get("text", {}).get("body", "") 
     
     logging.info("MESSAGE FROM USER: " + str(message_text))
-    chatbot_response = f"Response to your message '{message_text}':\n This is an example response from Advising101's chatbot"
-    
-    requests.post("https://marmalade-deciduous-router.glitch.me/reply_to_user", json={
-        "chatbot_response": chatbot_response,
-        "payload_from_user": data["payload_from_user"]
-    })
-    
-    return "Chatbot Reply Obtained", 200
+    embeddings = get_openai_embedding(message_text)
+    results = collection.query(
+        embeddings, n_results=30,  
+        where={"id": {"$ne": "none"}}
+        )
+    retrieved_docs = results["documents"][0] 
+    context = "\n".join(retrieved_docs)
+    prompt = f"""You are an AI assistant answering questions about a university.
 
-@app.route("/reply_to_user", methods=["POST"])
-def reply_to_user():
-    data = request.get_json()
-    payload_from_user = data.get("payload_from_user", {})
-    
-    business_phone_number_id = payload_from_user.get("entry", [{}])[0].get("changes", [{}])[0].get("value", {}).get("metadata", {}).get("phone_number_id")
-    message = payload_from_user.get("entry", [{}])[0].get("changes", [{}])[0].get("value", {}).get("messages", [{}])[0]
-    chatbot_response = data.get("chatbot_response", "")
-    
-    # Send reply
-    requests.post(
-        f"https://graph.facebook.com/v18.0/{business_phone_number_id}/messages",
-        headers={"Authorization": f"Bearer {GRAPH_API_TOKEN}"},
-        json={
-            "messaging_product": "whatsapp",
-            "to": message["from"],
-            "text": {"body": chatbot_response},
-            "context": {"message_id": message["id"]}
-        }
+    Context:
+    {context}
+
+    Question: {message_text}
+    Answer:
+    """
+    response = openai.chat.completions.create(
+        model="gpt-4",
+        messages=[{"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": prompt}]
     )
+
+    chatbot_response = response.choices[0].message.content
     
-    return "Reply Sent", 200
+    return chatbot_response
 
 @app.route("/webhook", methods=["GET"])
 def verify_webhook():
