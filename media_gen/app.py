@@ -8,6 +8,7 @@ from shared.models.scrapeTarget import ScrapeTarget
 from shared.database import engine, SessionLocal
 from sqlalchemy.sql import text
 from media_gen.apis.imagine_api import ImagineArtAI
+from media_gen.apis.novita_api import NovitaAI 
 from shared.apis.chatgpt_api import ChatGptApi
 from dotenv import load_dotenv
 import json
@@ -25,6 +26,11 @@ client = SecretClient(vault_url=VAULT_URL, credential=credential)
 #Fetch secrets from Azure Key Vault
 IMAGINE_API_KEY = client.get_secret("IMAGINE-API-KEY").value
 OPENAI_API_KEY = client.get_secret("OPENAI-API-KEY").value
+NOVITA_API_KEY = client.get_secret("NOVITA-API-KEY").value
+
+# Initialize NovitaAI and ChatGPT API instances
+novita = NovitaAI(NOVITA_API_KEY)
+chatgpt = ChatGptApi(api_key=OPENAI_API_KEY, model="gpt-4o-mini")
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
@@ -82,6 +88,62 @@ def generate_image_route():
         "response": response_data,
         "image_path": image_path
     })
+
+
+
+
+@app.route("/generate-video", methods=["POST"])
+def generate_video():
+    """
+    Flask route to generate a video using NovitaAI.
+    Expects a JSON payload with 'context' and 'style'.
+    Uses ChatGPT to generate a structured prompt.
+    """
+    data = request.get_json()
+    
+    validation_error = validate_request(data)
+    if validation_error:
+        return jsonify({"error": validation_error}), 400
+
+    context = data["context"]
+    style = data["style"]
+
+    # Generate structured prompts using ChatGPT
+    generated_prompt = chatgpt.generate_video_generation_prompt(context, style)
+
+    if not generated_prompt:
+        return jsonify({"error": "Failed to generate a structured prompt from the context"}), 500
+    else:
+        print("Generated video prompt:", generated_prompt)
+
+    # Convert generated prompt into the required format for NovitaAI
+    prompts = [
+        {"frames": 32, "prompt": segment} for segment in generated_prompt.split(". ") if segment
+    ]
+
+    model_name = "darkSushiMixMix_225D_64380.safetensors"  # Default model name
+
+    # Send request to NovitaAI to generate the video
+    task_id = novita.generate_video(model_name, prompts)
+
+    if task_id:
+        return jsonify({"message": "Video generation started", "task_id": task_id})
+    else:
+        return jsonify({"error": "Failed to generate video"}), 500
+
+
+@app.route("/video-status/<task_id>", methods=["GET"])
+def video_status(task_id):
+    """
+    Flask route to check the status of a video generation request.
+    If video generation is complete, returns the video URL.
+    """
+    video_url = novita.get_video_status(task_id)
+
+    if video_url:
+        return jsonify({"status": "success", "video_url": video_url})
+    else:
+        return jsonify({"status": "failed or processing"}), 404
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=3002)
