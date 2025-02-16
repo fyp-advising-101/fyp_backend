@@ -13,13 +13,34 @@ from dotenv import load_dotenv
 import json
 import datetime
 
+
+from azure.identity import DefaultAzureCredential
+from azure.keyvault.secrets import SecretClient
+
+#Set up Azure Key Vault credentials
+VAULT_URL = "https://advising101vault.vault.azure.net"  
+credential = DefaultAzureCredential()
+client = SecretClient(vault_url=VAULT_URL, credential=credential)
+
+#Fetch secrets from Azure Key Vault
+IMAGINE_API_KEY = client.get_secret("IMAGINE-API-KEY").value
+OPENAI_API_KEY = client.get_secret("OPENAI-API-KEY").value
+
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 # Create tables if not created
 Base.metadata.create_all(bind=engine)
 load_dotenv()
-IMAGINE_ART_API_KEY = os.environ.get("IMAGINE_ART_API_KEY","vk-YBq8n4X3PjtAwTLYh2eH7eUNnCNymT42DEJ8d9pXPoE2BS9")
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY","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")
+
+def validate_request(data):
+    if not isinstance(data, dict):
+        return "Invalid JSON format"
+    if "context" not in data or "style" not in data:
+        return "Missing required fields: 'context' and 'style'"
+    if not isinstance(data["context"], str) or not isinstance(data["style"], str):
+        return "Invalid data type for 'context' or 'style'"
+    return None
+
 
 @app.route("/generate-image", methods=["POST"])
 def generate_image_route():
@@ -29,6 +50,10 @@ def generate_image_route():
     Returns a JSON response with the API response and image path.
     """
     data = request.get_json()
+    validation_error = validate_request(data)
+    if validation_error:
+        return jsonify({"error": validation_error}), 400
+    
     if not data:
         return jsonify({"error": "No JSON payload provided"}), 400
 
@@ -48,7 +73,7 @@ def generate_image_route():
     else:
         print("Generated image prompt:", generated_prompt)
 
-    imagine = ImagineArtAI(api_key=IMAGINE_ART_API_KEY)
+    imagine = ImagineArtAI(api_key=IMAGINE_API_KEY)
 
     response_data, image_path = imagine.generate_image(generated_prompt, style)
 
