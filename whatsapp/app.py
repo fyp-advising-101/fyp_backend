@@ -29,7 +29,7 @@ def get_openai_embedding(text):
     response = openai.embeddings.create(input=text, model="text-embedding-3-large")
     return response.data[0].embedding
 
-@app.route("/webhook", methods=["POST"])
+@app.route("/", methods=["POST"])
 def webhook():
     data = request.get_json()
     logging.info("Incoming webhook message:" + str(data))
@@ -102,7 +102,7 @@ def get_response_from_gpt(data):
     
     return chatbot_response
 
-@app.route("/webhook", methods=["GET"])
+@app.route("/", methods=["GET"])
 def verify_webhook():
     mode = request.args.get("hub.mode")
     token = request.args.get("hub.verify_token")
@@ -114,9 +114,7 @@ def verify_webhook():
     else:
         return "Forbidden", 403
 
-@app.route("/")
-def home():
-    return "<pre>Nothing to see here. Checkout README.md to start.</pre>"
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=3000)
