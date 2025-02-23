@@ -1,3 +1,8 @@
 .env
 venv/
 tmp/
+profile.out
+whatsapp/__pycache__/
+shared/__pycache__/
+crud/__pycache__/
+shared/models/__pycache__/
