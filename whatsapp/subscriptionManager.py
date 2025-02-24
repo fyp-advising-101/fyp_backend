@@ -1,7 +1,7 @@
 import os, sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from whatsapp.database import db
-from shared.models.userSubscriptions import UserSubscriptions
+from shared.models.user_subscriptions import UserSubscriptions
 from shared.models.users import Users
 from sqlalchemy.exc import IntegrityError
 import logging

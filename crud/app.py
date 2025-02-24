@@ -3,8 +3,8 @@ from flask_cors import CORS
 import sys, os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from shared.models.base import Base
-from shared.models.jobScheduler import JobScheduler
-from shared.models.scrapeTarget import ScrapeTarget
+from shared.models.job import Job
+from shared.models.scrape_target import ScrapeTarget
 from shared.database import engine, SessionLocal
 from sqlalchemy.sql import text
 import json
@@ -22,10 +22,10 @@ def add_job():
     db_session = SessionLocal()
     
     try:
-        new_job = JobScheduler(
+        new_job = Job(
             task_name=data['task_name'],
             scheduled_date=datetime.datetime.strptime(data['scheduled_date'], "%Y-%m-%d %H:%M:%S"),
-            status="Pending",
+            status=0,
             error_message=data.get('error_message', None),
             created_at=datetime.datetime.now(),
             updated_at=datetime.datetime.now()
@@ -42,7 +42,7 @@ def edit_job(job_id):
     """Edit an existing job"""
     data = request.json
     db_session = SessionLocal()
-    job = db_session.query(JobScheduler).filter_by(id=job_id).first()
+    job = db_session.query(Job).filter_by(id=job_id).first()
     if not job:
         return jsonify({"error": "Job not found"}), 404
 
@@ -63,7 +63,7 @@ def edit_job(job_id):
 def delete_job(job_id):
     """Delete a job from the scheduler"""
     db_session = SessionLocal()
-    job = db_session.query(JobScheduler).filter_by(id=job_id).first()
+    job = db_session.query(Job).filter_by(id=job_id).first()
     if not job:
         return jsonify({"error": "Job not found"}), 404
 
@@ -79,7 +79,7 @@ def delete_job(job_id):
 def get_job(job_id):
     """Get a single job by ID"""
     db_session = SessionLocal()
-    job = db_session.query(JobScheduler).filter_by(id=job_id).first()
+    job = db_session.query(Job).filter_by(id=job_id).first()
     if not job:
         return jsonify({"error": "Job not found"}), 404
 
@@ -97,7 +97,7 @@ def get_job(job_id):
 def get_all_jobs():
     """Get all jobs from the scheduler"""
     db_session = SessionLocal()
-    jobs = db_session.query(JobScheduler).all()
+    jobs = db_session.query(Job).all()
     return jsonify([
         {
             "id": job.id,

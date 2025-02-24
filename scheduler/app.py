@@ -10,8 +10,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from shared.database import engine, SessionLocal
 from shared.models.base import Base
 
-from shared.models.jobScheduler import JobScheduler  
-from shared.models.scrapeTarget import ScrapeTarget
+from shared.models.job import Job  
+from shared.models.scrape_target import ScrapeTarget
 Base.metadata.create_all(bind=engine)
 
 scraping_url = ""
@@ -28,10 +28,10 @@ def add_job(task_name: str, scheduled_date: datetime.datetime):
     db_session = SessionLocal()
     now = datetime.datetime.now()
     try:
-        new_job = JobScheduler(
+        new_job = Job(
             task_name=task_name,
             scheduled_date=scheduled_date,
-            status="pending",         # initial status set to pending
+            status=0,         # initial status set to pending
             error_message=None,
             created_at=now,
             updated_at=now
@@ -66,9 +66,9 @@ def initiate_tasks():
     db_session = SessionLocal()
     try:
         # Query for pending jobs whose scheduled_date is now or has passed.
-        pending_jobs = db_session.query(JobScheduler).filter(
-            JobScheduler.status == "pending",
-            JobScheduler.scheduled_date <= now
+        pending_jobs = db_session.query(Job).filter(
+            Job.status == 0,
+            Job.scheduled_date <= now
         ).all()
         
         print(f"[{datetime.datetime.now()}] Found {len(pending_jobs)} pending jobs to initiate.")
@@ -98,11 +98,11 @@ def initiate_tasks():
                 if response.status_code == 200:
                     print(f"[{datetime.datetime.now()}] Successfully initiated '{job.task_name}' (ID: {job.id})")
                 else:
-                    job.status = "failed"
+                    job.status = -1
                     job.error_message = f"HTTP {response.status_code}"
                     print(f"[{datetime.datetime.now()}] Failed to initiate '{job.task_name}' (ID: {job.id}). HTTP {response.status_code}")
             except Exception as e:
-                job.status = "failed"
+                job.status = -1
                 job.error_message = str(e)
                 print(f"[{datetime.datetime.now()}] Exception while initiating '{job.task_name}' (ID: {job.id}): {e}")
             
@@ -195,10 +195,10 @@ def create_test_job(task_name: str) -> int:
     now = datetime.datetime.now()
     job_id = None
     try:
-        test_job = JobScheduler(
+        test_job = Job(
             task_name=task_name,
             scheduled_date=now,
-            status="pending",  # initial status
+            status=0,  # initial status
             error_message=None,
             created_at=now,
             updated_at=now
@@ -225,7 +225,7 @@ def initiate_test_job(job_id: int, url: str):
     db_session = SessionLocal()
     try:
         # Retrieve the job by its ID.
-        job = db_session.query(JobScheduler).get(job_id)
+        job = db_session.query(Job).get(job_id)
         if not job:
             print(f"[{datetime.datetime.now()}] No job found with id {job_id}")
             return
@@ -236,15 +236,15 @@ def initiate_test_job(job_id: int, url: str):
             response = requests.get(url)
             # Assume status code 200 means success.
             if response.status_code == 200:
-                job.status = "completed"
+                job.status = 2
                 job.error_message = None
                 print(f"[{datetime.datetime.now()}] Successfully initiated job ID {job_id}")
             else:
-                job.status = "failed"
+                job.status = -1
                 job.error_message = f"HTTP {response.status_code}"
                 print(f"[{datetime.datetime.now()}] Failed to initiate job ID {job_id}. HTTP {response.status_code}")
         except Exception as e:
-            job.status = "failed"
+            job.status = -1
             job.error_message = str(e)
             print(f"[{datetime.datetime.now()}] Exception while initiating '{job.task_name}' (ID: {job.id}): {e}")
             

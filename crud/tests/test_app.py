@@ -8,7 +8,7 @@ from crud.app import app as flask_app
 from shared.database import engine, SessionLocal
 from shared.models.base import Base
 from shared.models.jobScheduler import JobScheduler
-from shared.models.scrapeTarget import ScrapeTarget
+from shared.models.scrape_target import ScrapeTarget
 
 # Ensure app context is active for tests
 @pytest.fixture(scope='session', autouse=True)
