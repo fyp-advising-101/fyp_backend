@@ -1,16 +1,48 @@
 import requests
 import time
-import os
-from dotenv import load_dotenv
 from azure.identity import DefaultAzureCredential
 from azure.keyvault.secrets import SecretClient
+from azure.storage.blob import BlobServiceClient
+from datetime import datetime
+
 
 class InstagramAPI:
-    def __init__(self, app_id, app_secret, short_lived_token, instagram_user_id):
+    def __init__(self, app_id, app_secret, short_lived_token, instagram_user_id, blob_service_client, container_name):
         self.app_id = app_id
         self.app_secret = app_secret
         self.access_token = short_lived_token
         self.instagram_user_id = instagram_user_id
+        self.blob_service_client = blob_service_client
+        self.container_name = container_name
+
+    def get_blob_url(self, blob_name):
+        """
+        Generates a publicly accessible URL for a blob stored in Azure Storage.
+        """
+        return f"https://{self.blob_service_client.account_name}.blob.core.windows.net/{self.container_name}/{blob_name}"
+
+    def get_latest_blob(self, file_type):
+        """
+        Retrieves the most recently uploaded image or video from Azure Blob Storage.
+        file_type should be 'image' or 'video'.
+        """
+        blob_list = self.blob_service_client.get_container_client(self.container_name).list_blobs()
+
+        # Filter blobs by file type (store images in "images/" and videos in "videos/")
+        prefix = f"{file_type}s/"  # 'images/' or 'videos/'
+        blobs = [blob for blob in blob_list if blob.name.startswith(prefix)]
+
+        if not blobs:
+            print(f"No {file_type}s found in Azure Blob Storage.")
+            return None
+
+        # Sort blobs by last modified time (latest first)
+        blobs.sort(key=lambda blob: blob.last_modified, reverse=True)
+
+        latest_blob = blobs[0]  # Get the latest file
+        print(f"Latest {file_type}: {latest_blob.name}")
+
+        return latest_blob.name  # Return the blob name (relative path)
 
     def refresh_access_token(self):
         url = "https://graph.facebook.com/v20.0/oauth/access_token"
@@ -27,7 +59,20 @@ class InstagramAPI:
         else:
             print(f"Error refreshing token: {response.status_code}, {response.text}")
 
-    def upload_and_publish_pic(self, image_url, caption="Automated post via Instagram API"):
+    def upload_and_publish_pic(self, caption="Automated post via Instagram API"):
+        """
+        Automatically fetches the latest image from Azure Blob Storage and uploads it to Instagram.
+        """
+        latest_blob_name = self.get_latest_blob("image")
+        if not latest_blob_name:
+            print("No image found to upload.")
+            return
+
+        # Generate Azure Blob public URL
+        image_url = self.get_blob_url(latest_blob_name)
+        print(f"Uploading image from Azure Blob: {image_url}")
+
+        # Send request to Instagram API
         url = f"https://graph.facebook.com/v20.0/{self.instagram_user_id}/media"
         params = {
             "image_url": image_url,
@@ -60,7 +105,19 @@ class InstagramAPI:
         else:
             print(f"Error publishing media: {publish_response.status_code}, {publish_response.text}")
 
-    def upload_and_publish_video(self, video_url, caption="Automated video post via Instagram API"):
+    def upload_and_publish_video(self, caption="Automated video post via Instagram API"):
+        """
+        Automatically fetches the latest video from Azure Blob Storage and uploads it to Instagram.
+        """
+        latest_blob_name = self.get_latest_blob("video")
+        if not latest_blob_name:
+            print("No video found to upload.")
+            return
+
+        # Generate Azure Blob public URL
+        video_url = self.get_blob_url(latest_blob_name)
+        print(f"Uploading video from Azure Blob: {video_url}")
+
         # Step 1: Create video media object
         url = f"https://graph.facebook.com/v20.0/{self.instagram_user_id}/media"
         params = {
@@ -110,26 +167,35 @@ class InstagramAPI:
         else:
             print(f"Error publishing video: {publish_response.status_code}, {publish_response.text}")
 
-# Usage Example
+
 if __name__ == "__main__":
+    # Initialize Azure Key Vault
     VAULT_URL = "https://advising101vault.vault.azure.net"
     credential = DefaultAzureCredential()
     client = SecretClient(vault_url=VAULT_URL, credential=credential)
 
+    # Retrieve secrets
     APP_ID = client.get_secret("APP-ID").value
     APP_SECRET = client.get_secret("APP-SECRET").value
     ACCESS_TOKEN = client.get_secret("INSTAGRAM-ACCESS-TOKEN").value
     INSTAGRAM_USER_ID = client.get_secret("INSTAGRAM-USER-ID").value
-    
+    AZURE_STORAGE_CONNECTION_STRING = client.get_secret("posting-connection-key").value
+    AZURE_CONTAINER_NAME = "media-gen"
 
-    instagram_api = InstagramAPI(APP_ID, APP_SECRET, ACCESS_TOKEN, INSTAGRAM_USER_ID)
+    # Initialize Azure Blob Storage
+    blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
+
+    # Initialize Instagram API with Blob Storage
+    instagram_api = InstagramAPI(
+        APP_ID, APP_SECRET, ACCESS_TOKEN, INSTAGRAM_USER_ID, 
+        blob_service_client, AZURE_CONTAINER_NAME
+    )
 
     # Refresh access token
     instagram_api.refresh_access_token()
     
-    # Upload and publish a new post
-    #test_image_url = "https://i.imgur.com/q4EPE4Q.jpeg"
-    #instagram_api.upload_and_publish_pic(test_image_url, caption="This is an automated test post!")
-    # Upload and publish a new video
-    test_video_url = "https://www.dropbox.com/scl/fi/g5qxeicprnvrtp6143zte/generated_video.mp4?rlkey=05cjmy1bpmnc1p1f16w6ae9j4&st=5dnuxyfs&raw=1"
-    instagram_api.upload_and_publish_video(test_video_url, caption="This is an automated video post!")
+    # Automatically upload and publish the latest image
+    instagram_api.upload_and_publish_pic()
+
+    # Automatically upload and publish the latest video
+    instagram_api.upload_and_publish_video()
