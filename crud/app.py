@@ -20,6 +20,7 @@ def add_job():
     """Add a new job to the scheduler"""
     data = request.json
     db_session = SessionLocal()
+    
     try:
         new_job = JobScheduler(
             task_name=data['task_name'],
