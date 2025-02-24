@@ -17,7 +17,8 @@ import datetime
 
 from azure.identity import DefaultAzureCredential
 from azure.keyvault.secrets import SecretClient
-
+from azure.storage.blob import BlobServiceClient
+import uuid
 #Set up Azure Key Vault credentials
 VAULT_URL = "https://advising101vault.vault.azure.net"  
 credential = DefaultAzureCredential()
@@ -38,6 +39,36 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 Base.metadata.create_all(bind=engine)
 load_dotenv()
 
+
+# Fetch Azure Storage credentials from Key Vault
+AZURE_STORAGE_CONNECTION_STRING = client.get_secret("posting-connection-key").value
+AZURE_CONTAINER_NAME = "media-gen"
+
+# Initialize Azure Blob Service Client
+blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
+
+def upload_to_azure(file_path, file_type="image"):
+    """
+    Uploads a file to Azure Blob Storage and returns the public URL.
+    """
+    try:
+        # Generate a unique blob name
+        blob_name = f"{file_type}s/{uuid.uuid4().hex}_{os.path.basename(file_path)}"
+        
+        # Get the blob client
+        blob_client = blob_service_client.get_blob_client(container=AZURE_CONTAINER_NAME, blob=blob_name)
+
+        # Upload the file
+        with open(file_path, "rb") as data:
+            blob_client.upload_blob(data, overwrite=True)
+
+        # Generate a public URL
+        blob_url = f"https://{blob_service_client.account_name}.blob.core.windows.net/{AZURE_CONTAINER_NAME}/{blob_name}"
+        return blob_url
+    except Exception as e:
+        print(f"Azure Upload Error: {str(e)}")
+        return None
+    
 def validate_request(data):
     if not isinstance(data, dict):
         return "Invalid JSON format"
@@ -83,12 +114,16 @@ def generate_image_route():
 
     response_data, image_path = imagine.generate_image(generated_prompt, style)
 
-    # Return the API response and image path (or null if an error occurred)
-    return jsonify({
-        "response": response_data,
-        "image_path": image_path
-    })
-
+    if image_path:
+        # Upload to Azure Blob Storage
+        image_url = upload_to_azure(image_path, "image")
+        if image_url:
+            return jsonify({"response": response_data, "image_url": image_url})
+        else:
+            return jsonify({"error": "Failed to upload image to Azure"}), 500
+    else:
+        return jsonify({"error": "Image generation failed"}), 500
+   
 
 
 
