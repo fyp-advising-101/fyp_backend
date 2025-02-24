@@ -5,13 +5,13 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from shared.models.base import Base
 from shared.apis.azure_key_vault import AzureKeyVault
 from shared.apis.azure_blob import AzureBlobManager
-from shared.models.scrape_target import ScrapeTarget
+from shared.models.job import Job
 from shared.database import engine, SessionLocal
 from sqlalchemy.sql import text
 from media_gen.apis.imagine_api import ImagineArtAI
 from media_gen.apis.novita_api import NovitaAI 
 from shared.apis.chatgpt_api import ChatGptApi
-from dotenv import load_dotenv
+from datetime import timedelta
 import json
 import datetime
 from azure.identity import DefaultAzureCredential
@@ -28,14 +28,13 @@ AZURE_STORAGE_CONNECTION_STRING =key_vault.get_secret("posting-connection-key")
 
 # Initialize NovitaAI and ChatGPT API instances
 novita = NovitaAI(NOVITA_API_KEY)
-chatgpt = ChatGptApi(api_key=OPENAI_API_KEY, model="gpt-4o-mini")
+chatgpt_api = ChatGptApi(api_key=OPENAI_API_KEY, model="gpt-4o-mini")
 azureBlob = AzureBlobManager(AZURE_STORAGE_CONNECTION_STRING)
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 # Create tables if not created
 Base.metadata.create_all(bind=engine)
-load_dotenv()
 
 def validate_request(data):
     if not isinstance(data, dict):
@@ -46,51 +45,91 @@ def validate_request(data):
         return "Invalid data type for 'context' or 'style'"
     return None
 
-@app.route("/generate-image", methods=["POST"])
-def generate_image_route():
+@app.route("/generate-image/<int:job_id>", methods=["POST"])
+def generate_image_route(job_id):
     """
-    Flask route to generate an image using ImagineArt AI.
-    Expects a JSON payload with 'context' and 'style'.
-    Returns a JSON response with the API response and image path.
+    Generate an image using ImagineArt AI for a given job.
+    - Validates the incoming request payload.
+    - Queries the job with the given job_id and verifies that its task_name is "create media" and status is 0.
+    - Generates an image prompt, calls the ImagineArtAI to generate an image, and uploads it to Azure Blob Storage.
+    - Updates the current job's status to 2.
+    - Creates a new job with task_name "post media", using the blob_id as task_id and scheduled_date set to yesterday.
+    Returns a JSON response with the image URL, response data, and job details.
     """
     data = request.get_json()
     validation_error = validate_request(data)
     if validation_error:
         return jsonify({"error": validation_error}), 400
-    
+
     if not data:
         return jsonify({"error": "No JSON payload provided"}), 400
 
     context = data.get("context")
     style = data.get("style")
-
     if not context or not style:
         return jsonify({"error": "Missing required parameters: 'context' and 'style'"}), 400
-    
-    chatgpt = ChatGptApi(api_key=OPENAI_API_KEY, model="gpt-4o-mini")
 
-    generated_prompt = chatgpt.generate_image_generation_prompt(context)
-   
-    if not generated_prompt:
-        return jsonify({"error": "Failed to generate a prompt from the context"}), 500
+    db_session = SessionLocal()
 
-    else:
-        print("Generated image prompt:", generated_prompt)
+    try:
+        # Query the job by job_id
+        job = db_session.query(Job).filter(Job.id == job_id).first()
+        if not job:
+            return jsonify({"error": "Job not found"}), 404
 
-    imagine = ImagineArtAI(api_key=IMAGINE_API_KEY)
+        # Verify that the job has the correct task name and status
+        if job.task_name.lower() != "create media" or job.status !=1:
+            return jsonify({"error": "Job is not valid for image generation"}), 400
 
-    response_data, image_path = imagine.generate_image(generated_prompt, style)
+        # Generate the image prompt using ChatGptApi
+        prompt= chatgpt_api.generate_image_generation_prompt(context)
+        if not prompt:
+            return jsonify({"error": "Prompt generation failed"}), 500
 
-    if image_path:
-        # Upload to Azure Blob Storage
-        image_url = azureBlob.upload_file(image_path, "image")
-        if image_url:
-            return jsonify({"response": response_data, "image_url": image_url})
-        else:
+        # Generate the image using ImagineArtAI
+        imagine = ImagineArtAI(api_key=IMAGINE_API_KEY)
+        response_data, image_path = imagine.generate_image(prompt, style)
+        if not image_path:
+            return jsonify({"error": "Image generation failed"}), 500
+
+        # Upload the generated image to Azure Blob Storage
+        upload_result = azureBlob.upload_file(image_path, "image")
+        if not upload_result:
             return jsonify({"error": "Failed to upload image to Azure"}), 500
-    else:
-        return jsonify({"error": "Image generation failed"}), 500
-   
+
+        # Extract the blob_id and image_url from the upload result
+        image_url = upload_result.get("blob_url")
+
+        # Update the current job's status to 2
+        job.status = 2
+        job.updated_at = datetime.datetime.now().date()
+        db_session.commit()
+
+        # Create a new job with task name "post media"
+        new_job = Job(
+            task_name="post media",
+            task_id=image_url,  # Using the blob_id as the task identifier
+            scheduled_date=(datetime.datetime.now() - timedelta(days=1)).date(),
+            status=0,
+            error_message=None,
+            created_at=datetime.datetime.now().date(),
+            updated_at=datetime.datetime.now().date()
+        )
+        db_session.add(new_job)
+        db_session.commit()
+
+        return jsonify({
+            "response": response_data,
+            "image_url": image_url,
+            "job_id": job.id,
+            "new_job_id": new_job.id
+        }), 200
+
+    except Exception as e:
+        db_session.rollback()
+        return jsonify({"error": str(e)}), 400
+    finally:
+        db_session.close()
 
 @app.route("/generate-video", methods=["POST"])
 def generate_video():
@@ -109,7 +148,7 @@ def generate_video():
     style = data["style"]
 
     # Generate structured prompts using ChatGPT
-    generated_prompt = chatgpt.generate_video_generation_prompt(context, style)
+    generated_prompt = chatgpt_api.generate_video_generation_prompt(context, style)
 
     if not generated_prompt:
         return jsonify({"error": "Failed to generate a structured prompt from the context"}), 500

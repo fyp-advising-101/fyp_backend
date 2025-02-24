@@ -24,6 +24,7 @@ def add_job():
     try:
         new_job = Job(
             task_name=data['task_name'],
+            task_id = data['task_id'],
             scheduled_date=datetime.datetime.strptime(data['scheduled_date'], "%Y-%m-%d %H:%M:%S"),
             status=0,
             error_message=data.get('error_message', None),
@@ -48,6 +49,7 @@ def edit_job(job_id):
 
     try:
         job.task_name = data.get('task_name', job.task_name)
+        job.task_id = data.get('task_id', job.task_id)
         job.scheduled_date = datetime.datetime.strptime(data['scheduled_date'], "%Y-%m-%d %H:%M:%S") if 'scheduled_date' in data else job.scheduled_date
         job.status = data.get('status', job.status)
         job.error_message = data.get('error_message', job.error_message)
@@ -86,6 +88,7 @@ def get_job(job_id):
     return jsonify({
         "id": job.id,
         "task_name": job.task_name,
+        "task_id": job.task_id,
         "scheduled_date": job.scheduled_date.strftime("%Y-%m-%d %H:%M:%S"),
         "status": job.status,
         "error_message": job.error_message,
@@ -102,6 +105,7 @@ def get_all_jobs():
         {
             "id": job.id,
             "task_name": job.task_name,
+            "task_id": job.task_id,
             "scheduled_date": job.scheduled_date.strftime("%Y-%m-%d %H:%M:%S"),
             "status": job.status,
             "error_message": job.error_message,

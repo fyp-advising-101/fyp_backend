@@ -77,7 +77,7 @@ Answer:
         chatbot_response = response.choices[0].message.content
         return chatbot_response
 
-    def generate_image_generation_prompt(self, context: str) -> str:
+    def generate_image_generation_prompt(self, context: str):
         """
         Generates an image generation prompt based on the given context.
 
@@ -107,7 +107,8 @@ Answer:
                 temperature=0.7
             )
             generated_prompt = completion.choices[0].message.content.strip()
-            return generated_prompt
+            print("Prompt Generated!")
+            return generated_prompt 
         except Exception as e:
             print(f"Error generating image prompt: {e}")
             return ""

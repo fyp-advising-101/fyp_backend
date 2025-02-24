@@ -77,16 +77,14 @@ def initiate_tasks():
             # Determine the URL based on the task name.
             task_lower = job.task_name.lower()
             url_to_call = None
-            if "scrape website" in task_lower:
+            if "web scrape" in task_lower:
                 url_to_call = scraping_url + "endpoint and job id"
-            elif "scrape single page" in task_lower:
+            elif "insta scrape" in task_lower:
                 url_to_call = scraping_url + "endpoint and job id"
-            elif "scrape instagram" in task_lower:
+            elif "create media" in task_lower:
                 url_to_call = scraping_url + "endpoint and job id" 
-            elif "post on instagram" in task_lower:
+            elif "post image" in task_lower:
                 url_to_call = instagram_url
-            elif "create instagram post" in task_lower:
-                url_to_call = media_gen_url
             else:
                 print(f"[{datetime.datetime.now()}] No matching endpoint for task: {job.task_name}")
                 continue
@@ -96,6 +94,7 @@ def initiate_tasks():
                 response = requests.get(url_to_call)
                 # Here we assume a status code of 200 indicates success.
                 if response.status_code == 200:
+                    job.status = 1
                     print(f"[{datetime.datetime.now()}] Successfully initiated '{job.task_name}' (ID: {job.id})")
                 else:
                     job.status = -1
@@ -183,95 +182,19 @@ def create_weekly_scrape_jobs():
             # Increment the next run time by the frequency (in hours).
             next_run += datetime.timedelta(hours=frequency_hours)
 
-def create_test_job(task_name: str) -> int:
-    """
-    Creates a test job entry in the job_scheduler table.
-    
-    :param task_name: The descriptive name of the test job.
-    :param scheduled_date: When the job is scheduled to run.
-    :return: The ID of the created job.
-    """
-    db_session = SessionLocal()
-    now = datetime.datetime.now()
-    job_id = None
-    try:
-        test_job = Job(
-            task_name=task_name,
-            scheduled_date=now,
-            status=0,  # initial status
-            error_message=None,
-            created_at=now,
-            updated_at=now
-        )
-        db_session.add(test_job)
-        db_session.commit()
-        job_id = test_job.id
-        print(f"[{datetime.datetime.now()}] Test job created: id {job_id}, task '{task_name}' scheduled for {scheduled_date}")
-    except SQLAlchemyError as e:
-        db_session.rollback()
-        print(f"[{datetime.datetime.now()}] Error creating test job '{task_name}': {e}")
-    finally:
-        db_session.close()
-    return job_id
-
-def initiate_test_job(job_id: int, url: str):
-    """
-    Initiates the specified job by sending an HTTP GET request to the provided URL.
-    Updates the job's status based on the result.
-    
-    :param job_id: The ID of the job to initiate.
-    :param url: The URL to which the HTTP request is sent.
-    """
-    db_session = SessionLocal()
-    try:
-        # Retrieve the job by its ID.
-        job = db_session.query(Job).get(job_id)
-        if not job:
-            print(f"[{datetime.datetime.now()}] No job found with id {job_id}")
-            return
-        
-        print(f"[{datetime.datetime.now()}] Initiating job '{job.task_name}' (ID: {job_id}) using URL: {url}")
-
-        try:
-            response = requests.get(url)
-            # Assume status code 200 means success.
-            if response.status_code == 200:
-                job.status = 2
-                job.error_message = None
-                print(f"[{datetime.datetime.now()}] Successfully initiated job ID {job_id}")
-            else:
-                job.status = -1
-                job.error_message = f"HTTP {response.status_code}"
-                print(f"[{datetime.datetime.now()}] Failed to initiate job ID {job_id}. HTTP {response.status_code}")
-        except Exception as e:
-            job.status = -1
-            job.error_message = str(e)
-            print(f"[{datetime.datetime.now()}] Exception while initiating '{job.task_name}' (ID: {job.id}): {e}")
-            
-        job.updated_at = datetime.datetime.now()
-        db_session.commit()
-    except Exception as e:
-        db_session.rollback()
-        print(f"[{datetime.datetime.now()}] Exception during initiating job ID {job_id}: {e}")
-    finally:
-        db_session.close()
-
 if __name__ == "__main__":
 
     scheduler = BackgroundScheduler()
     # Schedule the weekly job to run every Sunday at midnight (00:00 UTC).
     #scheduler.add_job(create_weekly_instagram_jobs, 'cron', day_of_week='sun', hour=0, minute=0)
     #scheduler.add_job(create_weekly_scrape_jobs, 'cron', day_of_week='sun', hour=0, minute=0)
-    #scheduler.add_job(initiate_tasks, 'interval', minutes=30)
+    scheduler.add_job(initiate_tasks, 'interval', minutes=0.5)
     
     # Optionally, you could run the weekly job immediately at startup for testing:
     # create_weekly_instagram_jobs()
     # create_weekly_scrape_jobs()
     # initiate_tasks()
 
-    job_id = create_test_job("scrape website")
-    initiate_test_job(job_id, "put url here")
-    
     scheduler.start()
     print(f"[{datetime.datetime.now()}] Scheduler started...")
     
