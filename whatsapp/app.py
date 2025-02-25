@@ -7,7 +7,6 @@ import openai
 
 # Add the parent directory to sys.path to import local modules
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from whatsapp.database import db
 from subscriptionManager import subscribe_user, unsubscribe_user
 from shared.apis.chatgpt_api import ChatGptApi  # Our ChatGPT API class
 from shared.apis.azure_key_vault import AzureKeyVault  # Our Key Vault access class
@@ -22,24 +21,8 @@ WEBHOOK_VERIFY_TOKEN = vault.get_secret("WHATSAPP-WEBHOOK-VERIFY-TOKEN")
 GRAPH_API_TOKEN = vault.get_secret("INSTAGRAM-ACCESS-TOKEN")
 openai_api_key = vault.get_secret("OPENAI-API-KEY")
 
-mysql_password = vault.get_secret("DB-PASSWORD")
-ssl_cert = vault.get_secret("DigiCert-CA-Cert")
-
 chatgpt_api = ChatGptApi(api_key=openai_api_key, model="gpt-4")
 
-# Prepare certificate file for MySQL connection
-cert = "-----BEGIN CERTIFICATE-----\n" + '\n'.join([ssl_cert[i:i+64] for i in range(0, len(ssl_cert), 64)]) + "\n-----END CERTIFICATE-----"
-os.makedirs('tmp', exist_ok=True)
-cert_path = "./tmp/DigiCertGlobalRootCA.crt.pem"
-with open(cert_path, "w") as f:
-    f.write(cert)
-
-# Configure the SQLAlchemy database URI using the retrieved MySQL password and certificate
-app.config["SQLALCHEMY_DATABASE_URI"] = (
-    f'mysql+pymysql://advisor:{mysql_password}@mysqladvising101.mysql.database.azure.com:3306/fyp_db'
-    f'?ssl_ca={cert_path}'
-)
-db.init_app(app)
 
 # Initialize the vector database client and get the collection
 vector_client = HttpClient(host='vectordb.bluedune-c06522b4.uaenorth.azurecontainerapps.io', port=80)
@@ -52,6 +35,21 @@ logging.basicConfig(
 )
 
 def reply_to_user(business_phone_number_id, user_number, reply, message_id):
+    """
+    Sends a reply to a user via WhatsApp using the Meta Graph API.
+    
+    This function sends a message from the business's WhatsApp number to a user,
+    replying to a specific message the user sent.
+    
+    Args:
+        business_phone_number_id (str): The ID of the business's WhatsApp phone number.
+        user_number (str): The phone number of the recipient.
+        reply (str): The message content to be sent as a reply.
+        message_id (str): The ID of the message being replied to.
+    
+    Returns:
+        None
+    """
     requests.post(
         f"https://graph.facebook.com/v18.0/{business_phone_number_id}/messages",
         headers={"Authorization": f"Bearer {GRAPH_API_TOKEN}"},
@@ -65,6 +63,17 @@ def reply_to_user(business_phone_number_id, user_number, reply, message_id):
 
 @app.route("/", methods=["POST"])
 def webhook():
+    """
+    Handles incoming WhatsApp webhook events.
+    
+    This function processes messages received via the WhatsApp Business API and responds accordingly.
+    It supports the following commands:
+    - "subscribe <category>": Subscribes the user to a specific category.
+    - "unsubscribe <category>": Unsubscribes the user from a specific category.
+    - Any other text: Processes the message using a chatbot API.
+    
+    The function also marks the message as read and sends a response back to the user.
+    """
     data = request.get_json()
     logging.info("Incoming webhook message:" + str(data))
     
@@ -109,6 +118,16 @@ def webhook():
 
 @app.route("/", methods=["GET"])
 def verify_webhook():
+    """
+    Verifies the WhatsApp webhook during the setup process.
+    
+    When a GET request is received, this function checks if the mode and token match
+    the expected values and returns the challenge token for verification.
+    
+    Returns:
+        str: The challenge token if verification is successful.
+        int: HTTP status code (200 for success, 403 for failure).
+    """
     mode = request.args.get("hub.mode")
     token = request.args.get("hub.verify_token")
     challenge = request.args.get("hub.challenge")
