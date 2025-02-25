@@ -1,4 +1,4 @@
-from flask import Flask, json, request, jsonify
+from flask import Flask , request, jsonify
 from flask_cors import CORS
 import sys, os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -12,13 +12,8 @@ from media_gen.apis.imagine_api import ImagineArtAI
 from media_gen.apis.novita_api import NovitaAI 
 from shared.apis.chatgpt_api import ChatGptApi
 from datetime import timedelta
-import json
 import datetime
-from azure.identity import DefaultAzureCredential
-from azure.keyvault.secrets import SecretClient
-from azure.storage.blob import BlobServiceClient
 
-import uuid
 #Set up Azure Key Vault credentials
 key_vault = AzureKeyVault()
 IMAGINE_API_KEY = key_vault.get_secret("IMAGINE-API-KEY")
@@ -50,10 +45,10 @@ def generate_image_route(job_id):
     """
     Generate an image using ImagineArt AI for a given job.
     - Validates the incoming request payload.
-    - Queries the job with the given job_id and verifies that its task_name is "create media" and status is 0.
+    - Queries the job with the given job_id and verifies that its task_name is "create media" and status is 1.
     - Generates an image prompt, calls the ImagineArtAI to generate an image, and uploads it to Azure Blob Storage.
     - Updates the current job's status to 2.
-    - Creates a new job with task_name "post media", using the blob_id as task_id and scheduled_date set to yesterday.
+    - Creates a new job with task_name "post media", using the blob URL as task_id and scheduled_date set to yesterday.
     Returns a JSON response with the image URL, response data, and job details.
     """
     data = request.get_json()
@@ -70,7 +65,7 @@ def generate_image_route(job_id):
         return jsonify({"error": "Missing required parameters: 'context' and 'style'"}), 400
 
     db_session = SessionLocal()
-
+    job = None  # Initialize job so we can reference it in the exception block
     try:
         # Query the job by job_id
         job = db_session.query(Job).filter(Job.id == job_id).first()
@@ -78,29 +73,29 @@ def generate_image_route(job_id):
             return jsonify({"error": "Job not found"}), 404
 
         # Verify that the job has the correct task name and status
-        if job.task_name.lower() != "create media" or job.status !=1:
+        if job.task_name.lower() != "create media" or job.status != 1:
             return jsonify({"error": "Job is not valid for image generation"}), 400
 
         # Generate the image prompt using ChatGptApi
-        prompt= chatgpt_api.generate_image_generation_prompt(context)
+        prompt = chatgpt_api.generate_image_generation_prompt(context)
         if not prompt:
-            return jsonify({"error": "Prompt generation failed"}), 500
+            raise Exception("Prompt generation failed")
 
         # Generate the image using ImagineArtAI
         imagine = ImagineArtAI(api_key=IMAGINE_API_KEY)
         response_data, image_path = imagine.generate_image(prompt, style)
         if not image_path:
-            return jsonify({"error": "Image generation failed"}), 500
+            raise Exception("Image generation failed")
 
         # Upload the generated image to Azure Blob Storage
         upload_result = azureBlob.upload_file(image_path, "image")
         if not upload_result:
-            return jsonify({"error": "Failed to upload image to Azure"}), 500
+            raise Exception("Failed to upload image to Azure")
 
-        # Extract the blob_id and image_url from the upload result
+        # Extract the image URL from the upload result
         image_url = upload_result.get("blob_url")
 
-        # Update the current job's status to 2
+        # Update the current job's status to 2 (processed successfully)
         job.status = 2
         job.updated_at = datetime.datetime.now().date()
         db_session.commit()
@@ -108,7 +103,7 @@ def generate_image_route(job_id):
         # Create a new job with task name "post media"
         new_job = Job(
             task_name="post media",
-            task_id=image_url,  # Using the blob_id as the task identifier
+            task_id=image_url,  # Using the image URL as the task identifier
             scheduled_date=(datetime.datetime.now() - timedelta(days=1)).date(),
             status=0,
             error_message=None,
@@ -126,8 +121,20 @@ def generate_image_route(job_id):
         }), 200
 
     except Exception as e:
-        db_session.rollback()
+        # If an error occurs, update the job's status to -1 and store the error message
+        if job:
+            try:
+                job.status = -1
+                job.error_message = str(e)
+                job.updated_at = datetime.datetime.now().date()
+                db_session.commit()
+            except Exception as update_err:
+                db_session.rollback()
+                print(f"Error updating job error status: {update_err}")
+        else:
+            db_session.rollback()
         return jsonify({"error": str(e)}), 400
+
     finally:
         db_session.close()
 
