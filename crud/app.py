@@ -5,9 +5,9 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from shared.models.base import Base
 from shared.models.job import Job
 from shared.models.scrape_target import ScrapeTarget
+from shared.models.media_gen_options import MediaGenOptions
+from shared.models.media_category_options import MediaCategoryOptions
 from shared.database import engine, SessionLocal
-from sqlalchemy.sql import text
-import json
 import datetime
 
 app = Flask(__name__)
@@ -203,6 +203,198 @@ def get_all_scrape_targets():
             "created_at": target.created_at.strftime("%Y-%m-%d %H:%M:%S")
         } for target in targets
     ])
+
+@app.route('/media-gen-options', methods=['POST'])
+def add_media_gen_option():
+    """Add a new media generation option"""
+    data = request.json
+    db_session = SessionLocal()
+    try:
+        new_option = MediaGenOptions(
+            category=data['category'],
+            description=data.get('description', None),
+            media_type=data.get('media_type', None),
+        )
+        db_session.add(new_option)
+        db_session.commit()
+        return jsonify({"message": "Media generation option added successfully", "option_id": new_option.id}), 201
+    except Exception as e:
+        db_session.rollback()
+        return jsonify({"error": str(e)}), 400
+
+@app.route('/media-gen-options/<int:option_id>', methods=['GET'])
+def get_media_gen_option(option_id):
+    """Get a single media generation option by ID"""
+    db_session = SessionLocal()
+    option = db_session.query(MediaGenOptions).filter_by(id=option_id).first()
+    if not option:
+        return jsonify({"error": "Media generation option not found"}), 404
+
+    return jsonify({
+        "id": option.id,
+        "category": option.category,
+        "description": option.description,
+        "media_type": option.media_type,
+    })
+
+@app.route('/media-gen-options', methods=['GET'])
+def get_all_media_gen_options():
+    """Get all media generation options"""
+    db_session = SessionLocal()
+    options = db_session.query(MediaGenOptions).all()
+    return jsonify([
+        {
+            "id": option.id,
+            "category": option.category,
+            "description": option.description,
+            "media_type": option.media_type,
+        } for option in options
+    ])
+
+@app.route('/media-gen-options/<int:option_id>', methods=['PUT'])
+def edit_media_gen_option(option_id):
+    """Edit an existing media generation option"""
+    data = request.json
+    db_session = SessionLocal()
+    option = db_session.query(MediaGenOptions).filter_by(id=option_id).first()
+    if not option:
+        return jsonify({"error": "Media generation option not found"}), 404
+
+    try:
+        option.category = data.get('category', option.category)
+        option.description = data.get('description', option.description)
+        option.media_type = data.get('media_type', option.media_type)
+
+        db_session.commit()
+        return jsonify({"message": "Media generation option updated successfully"})
+    except Exception as e:
+        db_session.rollback()
+        return jsonify({"error": str(e)}), 400
+
+@app.route('/media-gen-options/<int:option_id>', methods=['DELETE'])
+def delete_media_gen_option(option_id):
+    """Delete a media generation option"""
+    db_session = SessionLocal()
+    option = db_session.query(MediaGenOptions).filter_by(id=option_id).first()
+    if not option:
+        return jsonify({"error": "Media generation option not found"}), 404
+
+    try:
+        db_session.delete(option)
+        db_session.commit()
+        return jsonify({"message": "Media generation option deleted successfully"})
+    except Exception as e:
+        db_session.rollback()
+        return jsonify({"error": str(e)}), 400
+    
+@app.route('/media-gen-options/<int:option_id>/category-options', methods=['GET'])
+def get_category_options_from_media_gen_option(option_id):
+    """Get all media category options for a specific media generation option"""
+    db_session = SessionLocal()
+    
+    # Optionally, first check if the media generation option exists
+    media_gen_option = db_session.query(MediaGenOptions).filter_by(id=option_id).first()
+    if not media_gen_option:
+        return jsonify({"error": "Media generation option not found"}), 404
+
+    # Retrieve all category options associated with the given media generation option
+    category_options = db_session.query(MediaCategoryOptions).filter_by(option_id=option_id).all()
+
+    result = [{
+        "id": option.id,
+        "title": option.title,
+        "prompt_text": option.prompt_text,
+        "option_id": option.option_id
+    } for option in category_options]
+
+    return jsonify(result)
+
+
+@app.route('/media-category-options', methods=['POST'])
+def add_media_category_option():
+    """Add a new media category option"""
+    data = request.json
+    db_session = SessionLocal()
+    try:
+        new_option = MediaCategoryOptions(
+            title=data['title'],
+            prompt_text=data['prompt_text'],
+            option_id=data['option_id']  # This links to the parent media gen option
+        )
+        db_session.add(new_option)
+        db_session.commit()
+        return jsonify({
+            "message": "Media category option added successfully",
+            "option_id": new_option.id
+        }), 201
+    except Exception as e:
+        db_session.rollback()
+        return jsonify({"error": str(e)}), 400
+
+@app.route('/media-category-options/<int:option_id>', methods=['GET'])
+def get_media_category_option(option_id):
+    """Get a single media category option by ID"""
+    db_session = SessionLocal()
+    option = db_session.query(MediaCategoryOptions).filter_by(id=option_id).first()
+    if not option:
+        return jsonify({"error": "Media category option not found"}), 404
+
+    return jsonify({
+        "id": option.id,
+        "title": option.title,
+        "prompt_text": option.prompt_text,
+        "option_id": option.option_id
+    })
+
+@app.route('/media-category-options', methods=['GET'])
+def get_all_media_category_options():
+    """Get all media category options"""
+    db_session = SessionLocal()
+    options = db_session.query(MediaCategoryOptions).all()
+    return jsonify([
+        {
+            "id": option.id,
+            "title": option.title,
+            "prompt_text": option.prompt_text,
+            "option_id": option.option_id
+        } for option in options
+    ])
+
+@app.route('/media-category-options/<int:option_id>', methods=['PUT'])
+def edit_media_category_option(option_id):
+    """Edit an existing media category option"""
+    data = request.json
+    db_session = SessionLocal()
+    option = db_session.query(MediaCategoryOptions).filter_by(id=option_id).first()
+    if not option:
+        return jsonify({"error": "Media category option not found"}), 404
+
+    try:
+        option.title = data.get('title', option.title)
+        option.prompt_text = data.get('prompt_text', option.prompt_text)
+        option.option_id = data.get('option_id', option.option_id)
+        db_session.commit()
+        return jsonify({"message": "Media category option updated successfully"})
+    except Exception as e:
+        db_session.rollback()
+        return jsonify({"error": str(e)}), 400
+
+@app.route('/media-category-options/<int:option_id>', methods=['DELETE'])
+def delete_media_category_option(option_id):
+    """Delete a media category option"""
+    db_session = SessionLocal()
+    option = db_session.query(MediaCategoryOptions).filter_by(id=option_id).first()
+    if not option:
+        return jsonify({"error": "Media category option not found"}), 404
+
+    try:
+        db_session.delete(option)
+        db_session.commit()
+        return jsonify({"message": "Media category option deleted successfully"})
+    except Exception as e:
+        db_session.rollback()
+        return jsonify({"error": str(e)}), 400
+
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=3001)

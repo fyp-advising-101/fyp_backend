@@ -7,7 +7,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from crud.app import app as flask_app
 from shared.database import engine, SessionLocal
 from shared.models.base import Base
-from shared.models.jobScheduler import JobScheduler
+from shared.models.job import Job
 from shared.models.scrape_target import ScrapeTarget
 
 # Ensure app context is active for tests

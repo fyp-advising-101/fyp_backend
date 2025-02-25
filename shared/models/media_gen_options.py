@@ -9,7 +9,7 @@ class MediaGenOptions(Base):
     category = Column(String(255), nullable=False)
     # Note: 'type' is a Python built-in name, so consider renaming to avoid confusion,
     # for example: `media_type = Column(String(255), nullable=False)`
-    type = Column(String(255), nullable=False)
+    media_type = Column(String(255), nullable=False)
     description = Column(String(255), nullable=True)
 
     # Relationship back to MediaCategoryOptions (one-to-many)
