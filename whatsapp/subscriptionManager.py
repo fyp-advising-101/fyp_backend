@@ -59,28 +59,27 @@ def subscribe_user(user_number, category):
         return "Please try again later", 503
 
 def unsubscribe_user(user_number, category):
-    def unsubscribe_user(user_number, category):
-        """
-        Unsubscribes a user from a specific category.
-        
-        This function checks if the user exists in the database. If they do not exist,
-        it returns a message indicating that the user is not subscribed to anything.
-        Then, it checks if the user is subscribed to the given category. If not, it
-        returns a message indicating the user is not subscribed to that category.
-        If the subscription exists, it deletes the subscription entry from the database.
-        
-        Args:
-            user_number (str): The phone number of the user.
-            category (str): The category the user wants to unsubscribe from.
-        
-        Returns:
-            tuple: A message string and an HTTP status code.
-            - "You are not subscribed to anything", 200: If the user does not exist.
-            - "You are not subscribed to this category", 200: If the user is not subscribed to the category.
-            - "Unsubscribed from {category} successfully", 200: If the unsubscription is successful.
-            - {"error": "Database integrity error while deleting subscription"}, 400: If a database integrity error occurs.
-            - "Please try again later", 500: If an unexpected error occurs.
-        """
+    """
+    Unsubscribes a user from a specific category.
+    
+    This function checks if the user exists in the database. If they do not exist,
+    it returns a message indicating that the user is not subscribed to anything.
+    Then, it checks if the user is subscribed to the given category. If not, it
+    returns a message indicating the user is not subscribed to that category.
+    If the subscription exists, it deletes the subscription entry from the database.
+    
+    Args:
+        user_number (str): The phone number of the user.
+        category (str): The category the user wants to unsubscribe from.
+    
+    Returns:
+        tuple: A message string and an HTTP status code.
+        - "You are not subscribed to anything", 200: If the user does not exist.
+        - "You are not subscribed to this category", 200: If the user is not subscribed to the category.
+        - "Unsubscribed from {category} successfully", 200: If the unsubscription is successful.
+        - {"error": "Database integrity error while deleting subscription"}, 400: If a database integrity error occurs.
+        - "Please try again later", 500: If an unexpected error occurs.
+    """
     db_session = SessionLocal()
     try:
         # Check if the user exists

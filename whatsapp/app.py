@@ -8,6 +8,7 @@ import openai
 # Add the parent directory to sys.path to import local modules
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from subscriptionManager import subscribe_user, unsubscribe_user
+from apis.whatsapp_api import WhatsAppAPI
 from shared.apis.chatgpt_api import ChatGptApi  # Our ChatGPT API class
 from shared.apis.azure_key_vault import AzureKeyVault  # Our Key Vault access class
 
@@ -22,7 +23,7 @@ GRAPH_API_TOKEN = vault.get_secret("INSTAGRAM-ACCESS-TOKEN")
 openai_api_key = vault.get_secret("OPENAI-API-KEY")
 
 chatgpt_api = ChatGptApi(api_key=openai_api_key, model="gpt-4")
-
+whatsapp_api = WhatsAppAPI(graph_api_token=GRAPH_API_TOKEN)
 
 # Initialize the vector database client and get the collection
 vector_client = HttpClient(host='vectordb.bluedune-c06522b4.uaenorth.azurecontainerapps.io', port=80)
@@ -34,32 +35,7 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
-def reply_to_user(business_phone_number_id, user_number, reply, message_id):
-    """
-    Sends a reply to a user via WhatsApp using the Meta Graph API.
-    
-    This function sends a message from the business's WhatsApp number to a user,
-    replying to a specific message the user sent.
-    
-    Args:
-        business_phone_number_id (str): The ID of the business's WhatsApp phone number.
-        user_number (str): The phone number of the recipient.
-        reply (str): The message content to be sent as a reply.
-        message_id (str): The ID of the message being replied to.
-    
-    Returns:
-        None
-    """
-    requests.post(
-        f"https://graph.facebook.com/v18.0/{business_phone_number_id}/messages",
-        headers={"Authorization": f"Bearer {GRAPH_API_TOKEN}"},
-        json={
-            "messaging_product": "whatsapp",
-            "to": user_number,
-            "text": {"body": reply},
-            "context": {"message_id": message_id}
-        }
-    )
+
 
 @app.route("/", methods=["POST"])
 def webhook():
@@ -75,7 +51,7 @@ def webhook():
     The function also marks the message as read and sends a response back to the user.
     """
     data = request.get_json()
-    logging.info("Incoming webhook message:" + str(data))
+    logging.info("Incoming webhook message")
     
     message = data.get("entry", [{}])[0].get("changes", [{}])[0].get("value", {}).get("messages", [{}])[0]
     message_text = message.get("text", {}).get("body", "")
@@ -86,33 +62,26 @@ def webhook():
         message_id = message['id']
 
         # Mark message as read
-        requests.post(
-            f"https://graph.facebook.com/v18.0/{business_phone_number_id}/messages",
-            headers={"Authorization": f"Bearer {GRAPH_API_TOKEN}"},
-            json={
-                "messaging_product": "whatsapp",
-                "status": "read",
-                "message_id": message_id
-            }
-        )
+        whatsapp_api.mark_message_as_read(business_phone_number_id, message_id)
 
         split_message = message_text.split(' ', 1)
         category = split_message[1].lower() if len(split_message) > 1 else ""
         if split_message[0].lower() == "subscribe":
             result = subscribe_user(user_number, category)
-            reply_to_user(business_phone_number_id, user_number, result[0], message_id)
+            whatsapp_api.reply_to_user(business_phone_number_id, user_number, result[0], message_id)
             return result
         
         if split_message[0].lower() == "unsubscribe":
             result = unsubscribe_user(user_number, category)
-            reply_to_user(business_phone_number_id, user_number, result[0], message_id)
+            whatsapp_api.reply_to_user(business_phone_number_id, user_number, result[0], message_id)
             return result
         
+        logging.info("Incoming message:" + message_text)
         # Use the ChatGptApi instance to generate a GPT response
         chatbot_response = chatgpt_api.get_response_from_gpt(message_text, collection)
         
         # Reply to the user with the chatbot's response
-        reply_to_user(business_phone_number_id, user_number, chatbot_response, message_id)
+        whatsapp_api.reply_to_user(business_phone_number_id, user_number, chatbot_response, message_id)
     
     return "Replied to Message", 200
 

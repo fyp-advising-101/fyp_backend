@@ -7,3 +7,4 @@ shared/__pycache__/
 crud/__pycache__/
 shared/models/__pycache__/
 shared/apis/__pycache__/
+whatsapp/apis/__pycache__/
