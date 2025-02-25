@@ -57,6 +57,8 @@ def subscribe_user(user_number, category):
         db_session.rollback()
         logging.error(e)
         return "Please try again later", 503
+    finally:
+        db_session.close()
 
 def unsubscribe_user(user_number, category):
     """
@@ -106,3 +108,5 @@ def unsubscribe_user(user_number, category):
         db_session.rollback()
         logging.error(e)
         return "Please try again later", 503
+    finally:
+        db_session.close()

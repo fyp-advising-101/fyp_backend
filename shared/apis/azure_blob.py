@@ -1,6 +1,6 @@
 import os
 import uuid
-from azure.storage.blob import BlobServiceClient
+from azure.storage.blob import BlobServiceClient, ContentSettings
 
 class AzureBlobManager:
     def __init__(self, connection_string: str, container_name="media-gen"):
@@ -14,7 +14,7 @@ class AzureBlobManager:
         self.container_name = container_name
         self.blob_service_client = BlobServiceClient.from_connection_string(self.connection_string)
 
-    def upload_file(self, file_path: str, file_type: str = "image") -> dict:
+    def upload_file(self, file_path: str, file_type: str = "image", content_type: str = "image/png") -> dict:
         """
         Uploads a file to Azure Blob Storage and returns a dictionary containing:
           - blob_url: The public URL of the uploaded blob.
@@ -33,7 +33,9 @@ class AzureBlobManager:
             blob_client = self.blob_service_client.get_blob_client(container=self.container_name, blob=blob_name)
 
             with open(file_path, "rb") as data:
-                blob_client.upload_blob(data, overwrite=True)
+                blob_client.upload_blob(data, 
+                                        content_settings=ContentSettings(content_type=content_type), 
+                                        overwrite=True)
 
             blob_url = (
                 f"https://{self.blob_service_client.account_name}.blob.core.windows.net/"

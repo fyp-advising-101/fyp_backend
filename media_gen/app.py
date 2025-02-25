@@ -93,7 +93,7 @@ def generate_image_route(job_id):
             return jsonify({"error": "Image generation failed"}), 500
 
         # Upload the generated image to Azure Blob Storage
-        upload_result = azureBlob.upload_file(image_path, "image")
+        upload_result = azureBlob.upload_file(image_path, "image", "image/png")
         if not upload_result:
             return jsonify({"error": "Failed to upload image to Azure"}), 500
 

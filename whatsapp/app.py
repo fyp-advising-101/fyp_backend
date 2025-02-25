@@ -1,9 +1,9 @@
-from flask import Flask, request
+from flask import Flask, request, jsonify
 import requests
 import logging
 import os, sys
 from chromadb import HttpClient
-import openai
+import datetime
 
 # Add the parent directory to sys.path to import local modules
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -11,6 +11,9 @@ from subscriptionManager import subscribe_user, unsubscribe_user
 from apis.whatsapp_api import WhatsAppAPI
 from shared.apis.chatgpt_api import ChatGptApi  # Our ChatGPT API class
 from shared.apis.azure_key_vault import AzureKeyVault  # Our Key Vault access class
+from shared.models.job import Job
+from shared.models.user_subscriptions import UserSubscriptions
+from shared.database import SessionLocal
 
 app = Flask(__name__)
 
@@ -62,18 +65,18 @@ def webhook():
         message_id = message['id']
 
         # Mark message as read
-        whatsapp_api.mark_message_as_read(business_phone_number_id, message_id)
+        whatsapp_api.mark_message_as_read(message_id)
 
         split_message = message_text.split(' ', 1)
         category = split_message[1].lower() if len(split_message) > 1 else ""
         if split_message[0].lower() == "subscribe":
             result = subscribe_user(user_number, category)
-            whatsapp_api.reply_to_user(business_phone_number_id, user_number, result[0], message_id)
+            whatsapp_api.reply_to_user(user_number, result[0], message_id)
             return result
         
         if split_message[0].lower() == "unsubscribe":
             result = unsubscribe_user(user_number, category)
-            whatsapp_api.reply_to_user(business_phone_number_id, user_number, result[0], message_id)
+            whatsapp_api.reply_to_user(user_number, result[0], message_id)
             return result
         
         logging.info("Incoming message:" + message_text)
@@ -81,9 +84,46 @@ def webhook():
         chatbot_response = chatgpt_api.get_response_from_gpt(message_text, collection)
         
         # Reply to the user with the chatbot's response
-        whatsapp_api.reply_to_user(business_phone_number_id, user_number, chatbot_response, message_id)
+        whatsapp_api.reply_to_user(user_number, chatbot_response, message_id)
     
     return "Replied to Message", 200
+
+@app.route("/post-image/<int:job_id>" , methods=["POST"])
+def post_image(job_id):
+    data = request.get_json()
+    caption = data.get("caption", "Here is your daily update!")
+    category = data.get("category", "sports")
+    db_session = SessionLocal()
+    try:
+        # Query the job by job_id
+        job = db_session.query(Job).filter(Job.id == job_id).first()
+        users = db_session.query(UserSubscriptions).filter(UserSubscriptions.category == category).all()
+        if not job:
+            return jsonify({"error": "Job not found"}), 404
+        
+        # Validate that the job is for posting an image and is pending (status 0)
+        if job.task_name.lower() != "post image" or job.status != 1:
+            return jsonify({"error": "Job is not valid for posting an image"}), 400
+
+        blob_url = job.task_id
+
+        # Call the WhatsApp API to upload and publish the picture
+        for user in users:
+            whatsapp_api.send_template_message(user.phone_number, category, blob_url, caption)
+        
+        # Update the job status to indicate it has been processed (status 2)
+        job.status = 2
+        job.updated_at = datetime.datetime.now().date()
+        db_session.commit()
+
+        return jsonify({"message": "Image posted successfully", "job_id": job.id}), 200
+
+    except Exception as e:
+        db_session.rollback()
+        return jsonify({"error": str(e)}), 400
+    finally:
+        db_session.close()
+
 
 @app.route("/", methods=["GET"])
 def verify_webhook():
