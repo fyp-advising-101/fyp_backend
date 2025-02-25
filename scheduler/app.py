@@ -17,6 +17,7 @@ Base.metadata.create_all(bind=engine)
 scraping_url = ""
 media_gen_url = ""
 instagram_url = ""
+whatsapp_url = ""
 
 def add_job(task_name: str, scheduled_date: datetime.datetime):
     """
@@ -85,6 +86,7 @@ def initiate_tasks():
                 url_to_call = scraping_url + "endpoint and job id" 
             elif "post image" in task_lower:
                 url_to_call = instagram_url
+                url_to_call = whatsapp_url
             else:
                 print(f"[{datetime.datetime.now()}] No matching endpoint for task: {job.task_name}")
                 continue

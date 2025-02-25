@@ -88,8 +88,11 @@ Answer:
             str: A detailed image generation prompt. If an error occurs, returns an empty string.
         """
         system_prompt = (
-            "You are a creative assistant specialized in generating "
-            "detailed and imaginative image prompts."
+"""
+Imagine you are a creative assistant for image generation, tasked with producing detailed and inspiring prompts. 
+Focus on generating prompts that feature the distinctive elements of the Middle East, particularly the ambiance and architectural style of the American University of Beirut in Lebanon. 
+Ensure your output is free from extraneous details like dates or time indicators unless they enhance the creative narrative.
+"""
         )
         user_prompt = (
             f"Based on the following context, generate a detailed image generation prompt that "
