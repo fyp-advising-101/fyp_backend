@@ -51,11 +51,12 @@ def post_image_route(job_id):
         # Query the job by job_id
         job = db_session.query(Job).filter(Job.id == job_id).first()
         if not job:
-            return jsonify({"error": "Job not found"}), 404
+            raise Exception("Job not found")
+        
         
         # Validate that the job is for posting an image and is pending (status 1)
         if job.task_name.lower() != "post image" or job.status != 1:
-            return jsonify({"error": "Job is not valid for posting an image"}), 400
+            raise Exception("Job is not valid for posting an image")
 
         blob_url = job.task_id
 
@@ -72,18 +73,7 @@ def post_image_route(job_id):
         return jsonify({"message": "Image posted successfully", "job_id": job.id}), 200
 
     except Exception as e:
-        # Update the job status to -1 and record the error message if the job exists
-        if job:
-            try:
-                job.status = -1
-                job.error_message = str(e)
-                job.updated_at = datetime.datetime.now().date()
-                db_session.commit()
-            except Exception as update_err:
-                db_session.rollback()
-                print(f"Error updating job error status: {update_err}")
-        else:
-            db_session.rollback()
+        db_session.rollback()
         return jsonify({"error": str(e)}), 400
     finally:
         db_session.close()

@@ -78,6 +78,13 @@ def initiate_tasks():
             # Determine the URL based on the task name.
             task_lower = job.task_name.lower()
             url_to_call = None
+
+            print(f"[{datetime.datetime.now()}] Starting'{job.task_name}' (ID: {job.id})")
+
+            job.status = 1
+            job.updated_at = datetime.datetime.now().date()
+            db_session.commit()
+
             if "web scrape" in task_lower:
                 url_to_call = scraping_url + "endpoint and job id"
             elif "insta scrape" in task_lower:
@@ -90,15 +97,12 @@ def initiate_tasks():
             else:
                 print(f"[{datetime.datetime.now()}] No matching endpoint for task: {job.task_name}")
                 continue
-            
+
             # Send an HTTP GET request to the endpoint.
             try:
                 response = requests.get(url_to_call)
                 # Here we assume a status code of 200 indicates success.
-                if response.status_code == 200:
-                    job.status = 1
-                    print(f"[{datetime.datetime.now()}] Successfully initiated '{job.task_name}' (ID: {job.id})")
-                else:
+                if response.status_code != 200:
                     job.status = -1
                     job.error_message = f"HTTP {response.status_code}"
                     print(f"[{datetime.datetime.now()}] Failed to initiate '{job.task_name}' (ID: {job.id}). HTTP {response.status_code}")
@@ -111,6 +115,7 @@ def initiate_tasks():
             job.updated_at = datetime.datetime.now()
             # Commit after each job update (or commit once after processing all jobs).
             db_session.commit()
+
     except SQLAlchemyError as e:
         db_session.rollback()
         print(f"[{datetime.datetime.now()}] Database error in initiate_tasks: {e}")

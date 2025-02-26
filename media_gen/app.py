@@ -6,13 +6,17 @@ from shared.models.base import Base
 from shared.apis.azure_key_vault import AzureKeyVault
 from shared.apis.azure_blob import AzureBlobManager
 from shared.models.job import Job
+from shared.models.media_category_options import MediaCategoryOptions
+from shared.models.media_gen_options import MediaGenOptions
 from shared.database import engine, SessionLocal
+from sqlalchemy.orm import joinedload
 from sqlalchemy.sql import text
 from media_gen.apis.imagine_api import ImagineArtAI
 from media_gen.apis.novita_api import NovitaAI 
 from shared.apis.chatgpt_api import ChatGptApi
 from datetime import timedelta
 import datetime
+import random
 
 #Set up Azure Key Vault credentials
 key_vault = AzureKeyVault()
@@ -51,46 +55,55 @@ def generate_image_route(job_id):
     - Creates a new job with task_name "post media", using the blob URL as task_id and scheduled_date set to yesterday.
     Returns a JSON response with the image URL, response data, and job details.
     """
-    data = request.get_json()
-    validation_error = validate_request(data)
-    if validation_error:
-        return jsonify({"error": validation_error}), 400
-
-    if not data:
-        return jsonify({"error": "No JSON payload provided"}), 400
-
-    context = data.get("context")
-    style = data.get("style")
-    if not context or not style:
-        return jsonify({"error": "Missing required parameters: 'context' and 'style'"}), 400
 
     db_session = SessionLocal()
     job = None  # Initialize job so we can reference it in the exception block
     try:
         # Query the job by job_id
         job = db_session.query(Job).filter(Job.id == job_id).first()
-        if not job:
-            return jsonify({"error": "Job not found"}), 404
 
-        # Verify that the job has the correct task name and status
+        if not job:
+            raise Exception("Job not found")
+
+       # Verify that the job has the correct task name and status
         if job.task_name.lower() != "create media" or job.status != 1:
-            return jsonify({"error": "Job is not valid for image generation"}), 400
+            raise Exception("Job is not valid for image generation")
+        
+        
+        # Extract task_id which corresponds to a MediaGenOption
+        task_id = job.task_id
+        if not task_id:
+            raise Exception("Task ID is missing in job")
+
+        # Retrieve the corresponding MediaGenOption
+        media_gen_option = (
+                db_session.query(MediaGenOptions)
+                .options(joinedload(MediaGenOptions.category_options))
+                .filter_by(id=task_id)
+                .first()
+            )
+
+        if not media_gen_option:
+            raise Exception("Media Generation Option not found")
+
+        # Get all associated MediaCategoryOptions
+        category_options = media_gen_option.category_options
+        if not category_options:
+            raise Exception("No category options found for this media generation option")
+        
+        # Randomly select one MediaCategoryOption
+        selected_option = random.choice(category_options)
+        prompt_text = selected_option.prompt_text
 
         # Generate the image prompt using ChatGptApi
-        prompt = chatgpt_api.generate_image_generation_prompt(context)
-        if not prompt:
-            raise Exception("Prompt generation failed")
+        prompt = chatgpt_api.generate_image_generation_prompt(prompt_text)
 
         # Generate the image using ImagineArtAI
         imagine = ImagineArtAI(api_key=IMAGINE_API_KEY)
-        response_data, image_path = imagine.generate_image(prompt, style)
-        if not image_path:
-            raise Exception("Image generation failed")
+        response_data, image_path = imagine.generate_image(prompt)
 
         # Upload the generated image to Azure Blob Storage
         upload_result = azureBlob.upload_file(image_path, "image", "image/png")
-        if not upload_result:
-            raise Exception("Failed to upload image to Azure")
 
         # Extract the image URL from the upload result
         image_url = upload_result.get("blob_url")
@@ -102,7 +115,7 @@ def generate_image_route(job_id):
 
         # Create a new job with task name "post media"
         new_job = Job(
-            task_name="post media",
+            task_name="post image",
             task_id=image_url,  # Using the image URL as the task identifier
             scheduled_date=(datetime.datetime.now() - timedelta(days=1)).date(),
             status=0,
@@ -121,20 +134,8 @@ def generate_image_route(job_id):
         }), 200
 
     except Exception as e:
-        # If an error occurs, update the job's status to -1 and store the error message
-        if job:
-            try:
-                job.status = -1
-                job.error_message = str(e)
-                job.updated_at = datetime.datetime.now().date()
-                db_session.commit()
-            except Exception as update_err:
-                db_session.rollback()
-                print(f"Error updating job error status: {update_err}")
-        else:
-            db_session.rollback()
+        db_session.rollback()
         return jsonify({"error": str(e)}), 400
-
     finally:
         db_session.close()
 

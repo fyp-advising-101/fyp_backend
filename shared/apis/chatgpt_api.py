@@ -1,4 +1,10 @@
+import logging
+import requests
 from openai import OpenAI
+from typing import List
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 class ChatGptApi:
     def __init__(self, api_key: str, model: str = "gpt-4"):
@@ -13,7 +19,7 @@ class ChatGptApi:
         self.api_key = api_key
         self.client = OpenAI(api_key=api_key)
 
-    def get_openai_embedding(self, text: str) -> list:
+    def get_openai_embedding(self, text: str) -> List[float]:
         """
         Generates an embedding vector for the given text using OpenAI Embeddings.
 
@@ -21,13 +27,27 @@ class ChatGptApi:
             text (str): The text to embed.
 
         Returns:
-            list: The embedding vector as a list of floats.
+            List[float]: The embedding vector as a list of floats.
+
+        Raises:
+            Exception: If the OpenAI API request fails.
         """
-        response = self.client.embeddings.create(
-            input=text,
-            model="text-embedding-3-large"
-        )
-        return response.data[0].embedding
+        try:
+            response = self.client.embeddings.create(
+                input=text,
+                model="text-embedding-3-large"
+            )
+            embedding = response.data[0].embedding
+            if not embedding:
+                raise ValueError("Received an empty embedding response.")
+            return embedding
+
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Network error while generating embeddings: {e}")
+            raise
+        except Exception as e:
+            logging.error(f"Unexpected error generating embedding: {e}")
+            raise
 
     def get_response_from_gpt(self, message_text: str, collection) -> str:
         """
@@ -40,44 +60,64 @@ class ChatGptApi:
 
         Returns:
             str: The GPT-generated response.
+
+        Raises:
+            Exception: If the API request or vector retrieval fails.
         """
-        # 1. Generate embeddings for the user query
-        embeddings = self.get_openai_embedding(message_text)
-        
-        # 2. Query your vector store for context
-        results = collection.query(
-            embeddings, 
-            n_results=30,  
-            where={"id": {"$ne": "none"}}
-        )
-        
-        # 3. Build a context string from retrieved documents
-        retrieved_docs = results["documents"][0]
-        context = "\n".join(retrieved_docs)
-        
-        # 4. Construct the prompt for GPT
-        prompt = f"""You are an AI assistant answering questions about a university.
+        try:
+            # 1. Generate embeddings for the user query
+            embeddings = self.get_openai_embedding(message_text)
 
-Context:
-{context}
+            # 2. Query your vector store for context
+            results = collection.query(
+                embeddings, 
+                n_results=30,  
+                where={"id": {"$ne": "none"}}
+            )
 
-Question: {message_text}
-Answer:
-"""
-        
-        # 5. Get the GPT response
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": prompt}
-            ]
-        )
-        
-        chatbot_response = response.choices[0].message.content
-        return chatbot_response
+            # 3. Validate the retrieved documents
+            if "documents" not in results or not results["documents"]:
+                raise ValueError("No relevant documents found in vector database.")
 
-    def generate_image_generation_prompt(self, context: str):
+            retrieved_docs = results["documents"][0]
+            context = "\n".join(retrieved_docs) if retrieved_docs else "No context available."
+
+            # 4. Construct the prompt for GPT
+            prompt = f"""You are an AI assistant answering questions about a university.
+
+            Context:
+            {context}
+
+            Question: {message_text}
+            Answer:
+            """
+
+            # 5. Get the GPT response
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": prompt}
+                ]
+            )
+
+            if not response.choices or not response.choices[0].message.content:
+                raise ValueError("Received an empty response from GPT.")
+
+            chatbot_response = response.choices[0].message.content.strip()
+            return chatbot_response
+
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Network error while retrieving GPT response: {e}")
+            raise
+        except ValueError as e:
+            logging.error(f"Data validation error in GPT response: {e}")
+            raise
+        except Exception as e:
+            logging.error(f"Unexpected error while retrieving GPT response: {e}")
+            raise
+
+    def generate_image_generation_prompt(self, context: str) -> str:
         """
         Generates an image generation prompt based on the given context.
 
@@ -85,15 +125,17 @@ Answer:
             context (str): A description or context that the image should capture.
 
         Returns:
-            str: A detailed image generation prompt. If an error occurs, returns an empty string.
+            str: A detailed image generation prompt.
+
+        Raises:
+            Exception: If the API request fails.
         """
         system_prompt = (
-"""
-Imagine you are a creative assistant for image generation, tasked with producing detailed and inspiring prompts. 
-Focus on generating prompts that feature the distinctive elements of the Middle East, particularly the ambiance and architectural style of the American University of Beirut in Lebanon. 
-Ensure your output is free from extraneous details like dates or time indicators unless they enhance the creative narrative.
-"""
+            "Imagine you are a creative assistant for image generation, tasked with producing detailed and inspiring prompts. "
+            "Focus on generating prompts that feature the distinctive elements of the Middle East, particularly the ambiance and architectural style of the American University of Beirut in Lebanon. "
+            "Ensure your output is free from extraneous details like dates or time indicators unless they enhance the creative narrative."
         )
+
         user_prompt = (
             f"Based on the following context, generate a detailed image generation prompt that "
             f"describes what to depict in a creative and inspiring manner:\n\n"
@@ -109,9 +151,20 @@ Ensure your output is free from extraneous details like dates or time indicators
                 ],
                 temperature=0.7
             )
+
+            if not completion.choices or not completion.choices[0].message.content:
+                raise ValueError("Received an empty response from GPT.")
+
             generated_prompt = completion.choices[0].message.content.strip()
-            print("Prompt Generated!")
+            logging.info("Image prompt successfully generated.")
             return generated_prompt 
+
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Network error while generating image prompt: {e}")
+            raise
+        except ValueError as e:
+            logging.error(f"Data validation error in image prompt response: {e}")
+            raise
         except Exception as e:
-            print(f"Error generating image prompt: {e}")
-            return ""
+            logging.error(f"Unexpected error while generating image prompt: {e}")
+            raise
