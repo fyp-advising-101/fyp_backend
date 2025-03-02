@@ -17,6 +17,7 @@ from shared.apis.chatgpt_api import ChatGptApi
 from datetime import timedelta
 import datetime
 import random
+from chromadb import HttpClient
 
 #Set up Azure Key Vault credentials
 key_vault = AzureKeyVault()
@@ -29,6 +30,9 @@ AZURE_STORAGE_CONNECTION_STRING =key_vault.get_secret("posting-connection-key")
 novita = NovitaAI(NOVITA_API_KEY)
 chatgpt_api = ChatGptApi(api_key=OPENAI_API_KEY, model="gpt-4o-mini")
 azureBlob = AzureBlobManager(AZURE_STORAGE_CONNECTION_STRING)
+# Initialize the vector database client and get the collection
+vector_client = HttpClient(host='vectordb.bluedune-c06522b4.uaenorth.azurecontainerapps.io', port=80)
+collection = vector_client.get_collection(name="aub_embeddings")
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
@@ -47,76 +51,85 @@ def validate_request(data):
 @app.route("/generate-image/<int:job_id>", methods=["POST"])
 def generate_image_route(job_id):
     """
-    Generate an image using ImagineArt AI for a given job.
-    - Validates the incoming request payload.
-    - Queries the job with the given job_id and verifies that its task_name is "create media" and status is 1.
-    - Generates an image prompt, calls the ImagineArtAI to generate an image, and uploads it to Azure Blob Storage.
-    - Updates the current job's status to 2.
-    - Creates a new job with task_name "post media", using the blob URL as task_id and scheduled_date set to yesterday.
-    Returns a JSON response with the image URL, response data, and job details.
+    Generate an image using ImagineArt AI by:
+    - Retrieving the related `question` from `media_gen_options`.
+    - Generating an embedding from `question` and querying ChromaDB.
+    - Getting the best-matching document from the results.
+    - Using ChatGPT to generate an enhanced image prompt.
+    - Sending the prompt to ImagineArtAI to generate an image.
+    - Uploading the generated image to Azure Blob Storage.
     """
 
     db_session = SessionLocal()
-    job = None  # Initialize job so we can reference it in the exception block
+    job = None
     try:
-        # Query the job by job_id
+        # Step 1: Query the Job by ID
         job = db_session.query(Job).filter(Job.id == job_id).first()
-
         if not job:
             raise Exception("Job not found")
 
-       # Verify that the job has the correct task name and status
+        # Verify that the job has the correct task type and status
         if job.task_name.lower() != "create media" or job.status != 1:
             raise Exception("Job is not valid for image generation")
-        
-        
-        # Extract task_id which corresponds to a MediaGenOption
-        task_id = job.task_id
-        if not task_id:
-            raise Exception("Task ID is missing in job")
 
-        # Retrieve the corresponding MediaGenOption
+        # Step 2: Retrieve MediaGenOption based on task_id
         media_gen_option = (
-                db_session.query(MediaGenOptions)
-                .options(joinedload(MediaGenOptions.category_options))
-                .filter_by(id=task_id)
-                .first()
-            )
+            db_session.query(MediaGenOptions)
+            .options(joinedload(MediaGenOptions.category_options))
+            .filter_by(id=job.task_id)
+            .first()
+        )
 
         if not media_gen_option:
             raise Exception("Media Generation Option not found")
 
-        # Get all associated MediaCategoryOptions
-        category_options = media_gen_option.category_options
-        if not category_options:
-            raise Exception("No category options found for this media generation option")
-        
-        # Randomly select one MediaCategoryOption
-        selected_option = random.choice(category_options)
-        prompt_text = selected_option.prompt_text
+        category = media_gen_option.category  # ✅ Get the category
 
-        # Generate the image prompt using ChatGptApi
-        prompt = chatgpt_api.generate_image_generation_prompt(prompt_text)
+        # Ensure that we have a question field to use for embedding
+        if not hasattr(media_gen_option, "question") or not media_gen_option.question:
+            raise Exception("No question found for this media generation option")
 
-        # Generate the image using ImagineArtAI
+        question_text = media_gen_option.question
+
+        # Step 3: Generate an Embedding for the Question
+        question_embedding = chatgpt_api.get_openai_embedding(question_text)
+
+        # Step 4: Query ChromaDB for the Most Relevant Context
+        results = collection.query(
+            query_embeddings=[question_embedding],
+            n_results=1,  # Get the best match
+            where={"id": {"$ne": "none"}}  # Ensure we're not matching empty results
+        )
+
+        # Step 5: Validate the Retrieved Documents
+        if "documents" not in results or not results["documents"]:
+            raise Exception("No relevant documents found in vector database.")
+
+        retrieved_docs = results["documents"][0]
+        context = "\n".join(retrieved_docs) if retrieved_docs else "No context available."
+
+        # Step 6: Generate a More Detailed AI Image Prompt Using ChatGPT
+        prompt = chatgpt_api.generate_image_generation_prompt(
+            f"Context: {context}\nOriginal Question: {question_text}"
+        )
+
+        # Step 7: Generate the Image Using ImagineArtAI
         imagine = ImagineArtAI(api_key=IMAGINE_API_KEY)
         response_data, image_path = imagine.generate_image(prompt)
 
-        # Upload the generated image to Azure Blob Storage
+        # Step 8: Upload the Generated Image to Azure Blob Storage
         upload_result = azureBlob.upload_file(image_path, "image", "image/png")
-
-        # Extract the image URL from the upload result
         image_url = upload_result.get("blob_url")
 
-        # Update the current job's status to 2 (processed successfully)
+        # Step 9: Update the Current Job Status
         job.status = 2
         job.updated_at = datetime.datetime.now().date()
         db_session.commit()
 
-        # Create a new job with task name "post media"
+        # Step 10: Create a New Job with Task Name "post image"
         new_job = Job(
             task_name="post image",
-            task_id=image_url,  # Using the image URL as the task identifier
+            task_id=image_url,
             scheduled_date=(datetime.datetime.now() - timedelta(days=1)).date(),
             status=0,
             error_message=None,
@@ -129,6 +142,8 @@ def generate_image_route(job_id):
         return jsonify({
             "response": response_data,
             "image_url": image_url,
+            "context_used": context,
+            "category": category,  # ✅ Include the category
             "job_id": job.id,
             "new_job_id": new_job.id
         }), 200
