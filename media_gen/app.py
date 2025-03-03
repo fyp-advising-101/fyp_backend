@@ -12,6 +12,7 @@ from shared.database import engine, SessionLocal
 from sqlalchemy.orm import joinedload
 from sqlalchemy.sql import text
 from media_gen.apis.imagine_api import ImagineArtAI
+from shared.models.media_asset import MediaAsset
 from media_gen.apis.novita_api import NovitaAI 
 from shared.apis.chatgpt_api import ChatGptApi
 from datetime import timedelta
@@ -120,17 +121,28 @@ def generate_image_route(job_id):
 
         # Step 8: Upload the Generated Image to Azure Blob Storage
         upload_result = azureBlob.upload_file(image_path, "image", "image/png")
-        blob_url = upload_result.get("blob_url")
+        media_blob_url = upload_result.get("blob_url")
+
+        caption = chatgpt_api.generate_caption(context)
 
         # Step 9: Update the Current Job Status
         job.status = 2
         job.updated_at = datetime.datetime.now().date()
         db_session.commit()
 
+        new_asset = MediaAsset(
+            media_blob_url=media_blob_url,
+            caption=caption,
+            media_type='image'
+        )
+
+        db_session.add(new_asset)
+        db_session.commit()
+
         # Step 10: Create a New Job with Task Name "post image"
         new_job = Job(
             task_name="post image",
-            task_id=blob_url,
+            task_id=new_asset.id,
             scheduled_date=(datetime.datetime.now() - timedelta(days=1)).date(),
             status=0,
             error_message=None,
@@ -141,8 +153,9 @@ def generate_image_route(job_id):
         db_session.commit()
 
         return jsonify({
-            "blob_url": blob_url,
+            "media_asset_id": new_asset.id,
             "chroma_query": selected_option.chroma_query,
+            "prompt_text": selected_option.prompt_text,  
             "category": media_gen_option.category,  
             "job_id": job.id,
             "new_job_id": new_job.id

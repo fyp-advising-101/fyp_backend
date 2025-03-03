@@ -171,3 +171,58 @@ class ChatGptApi:
         except Exception as e:
             logging.error(f"Unexpected error while generating image prompt: {e}")
             raise
+
+    def generate_caption(self, context: str) -> str:
+        """
+        Generates a creative caption based on the given context.
+
+        Args:
+            context (str): The context or description from which to generate a caption.
+
+        Returns:
+            str: A creative caption that encapsulates the essence of the context.
+
+        Raises:
+            Exception: If the API request fails.
+        """
+        system_prompt = (
+            "Imagine you are a creative assistant specialized in crafting engaging captions. "
+            "Your goal is to produce a short, impactful, and creative caption that reflects the core message of the provided context. "
+            "Keep it succinct and expressive. Limit to 50 words."
+        )
+
+        user_prompt = (
+            f"Using the context below, generate a creative caption that captures its essence:\n\n"
+            f"{context}\n\nCaption:"
+        )
+
+        try:
+            completion = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=0.7
+            )
+
+            if not completion.choices or not completion.choices[0].message.content:
+                raise ValueError("Received an empty response from GPT.")
+
+            generated_caption = completion.choices[0].message.content.strip()
+            logging.info("Caption successfully generated.")
+            logging.info("Context Used: %s", context)
+            logging.info("Generated Caption: %s", generated_caption)
+
+            return generated_caption
+
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Network error while generating caption: {e}")
+            raise
+        except ValueError as e:
+            logging.error(f"Data validation error in caption response: {e}")
+            raise
+        except Exception as e:
+            logging.error(f"Unexpected error while generating caption: {e}")
+            raise
+

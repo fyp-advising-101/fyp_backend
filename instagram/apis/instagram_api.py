@@ -60,7 +60,7 @@ class InstagramAPI:
             logging.error(f"Unexpected error while refreshing token: {e}")
             raise
 
-    def upload_and_publish_pic(self, blob_url, caption="Automated post via Instagram API"):
+    def upload_and_publish_pic(self, blob_url, caption):
         """
         Uploads an image to Instagram and publishes it.
 

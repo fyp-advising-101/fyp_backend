@@ -94,6 +94,7 @@ def initiate_tasks():
             elif "post image" in task_lower:
                 url_to_call = instagram_url
                 url_to_call = whatsapp_url
+                
             else:
                 print(f"[{datetime.datetime.now()}] No matching endpoint for task: {job.task_name}")
                 continue
@@ -121,73 +122,6 @@ def initiate_tasks():
         print(f"[{datetime.datetime.now()}] Database error in initiate_tasks: {e}")
     finally:
         db_session.close()
-
-def create_weekly_instagram_jobs():
-    """
-    Creates two sets of jobs for the upcoming week:
-      - For each weekday (Monday-Friday), create a "post on instagram" job at 10 AM.
-      - For each weekday (Monday-Friday), create a "create instagram post" job
-        scheduled the day before at 2 AM.
-    This function is intended to be run weekly (for example, every Sunday at midnight)
-    so that the next week's jobs are created in advance.
-    """
-    today = datetime.datetime.now().date()
-    next_monday = get_next_monday(today)
-    
-    print(f"[{datetime.datetime.now()}] Creating weekly Instagram jobs for week starting on {next_monday}")
-    
-    # Iterate Monday (0) through Friday (4)
-    for day_offset in range(5):
-        # Compute the weekday date for "post on instagram"
-        post_date = next_monday + datetime.timedelta(days=day_offset)
-        # Set the scheduled time for posting at 10 AM (UTC, adjust if needed)
-        post_datetime = datetime.datetime.combine(post_date, datetime.time(hour=10, minute=0))
-        add_job(task_name="post on instagram", scheduled_date=post_datetime)
-        
-        # For "create instagram post", schedule it the day before at 2 AM.
-        # For Monday, this will be the previous Sunday.
-        create_date = post_date - datetime.timedelta(days=1)
-        create_datetime = datetime.datetime.combine(create_date, datetime.time(hour=2, minute=0))
-        add_job(task_name="create instagram post", scheduled_date=create_datetime)
-
-def create_weekly_scrape_jobs():
-    """
-    For each scrape target in the ScrapeTarget table, create a series of scheduled
-    jobs for the upcoming week based on the target's frequency (in hours).
-    
-    The week is defined as starting on the next Monday at 00:00 UTC and ending 7 days later.
-    """
-    today = datetime.datetime.now().date()
-    week_start_date = get_next_monday(today)
-    week_start_dt = datetime.datetime.combine(week_start_date, datetime.time(0, 0))
-    week_end_dt = week_start_dt + datetime.timedelta(days=7)
-    
-    print(f"[{datetime.datetime.now()}] Creating weekly scrape jobs for targets between {week_start_dt} and {week_end_dt}")
-
-    # Retrieve all scrape targets.
-    db_session = SessionLocal()
-    try:
-        scrape_targets = db_session.query(ScrapeTarget).all()
-    except SQLAlchemyError as e:
-        print(f"Error retrieving scrape targets: {e}")
-        db_session.rollback()
-        return
-    finally:
-        db_session.close()
-    
-    # For each scrape target, schedule jobs at the specified frequency.
-    for target in scrape_targets:
-        frequency_hours = target.frequency
-        # Start scheduling at the beginning of the week.
-        next_run = week_start_dt
-        
-        # Continue creating jobs until the scheduled time reaches the end of the week.
-        while next_run < week_end_dt:
-            # Compose a descriptive task name.
-            task_name = (f"scrape {target.type}")
-            add_job(task_name=task_name, scheduled_date=next_run)
-            # Increment the next run time by the frequency (in hours).
-            next_run += datetime.timedelta(hours=frequency_hours)
 
 if __name__ == "__main__":
 

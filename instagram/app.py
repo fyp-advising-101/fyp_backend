@@ -10,6 +10,7 @@ from shared.models.job import Job
 from shared.database import engine, SessionLocal
 from sqlalchemy.sql import text
 from shared.apis.chatgpt_api import ChatGptApi
+from shared.models.media_asset import MediaAsset
 from datetime import timedelta
 import datetime
 
@@ -42,9 +43,6 @@ def post_image_route(job_id):
     - Updates the job's status to 2 and commits the changes.
     In case of an error, updates the job status to -1 and records the error message.
     """
-    data = request.get_json()
-    caption = data.get("caption", "Automated post via Instagram API")
-    
     db_session = SessionLocal()
     job = None
     try:
@@ -58,12 +56,18 @@ def post_image_route(job_id):
         if job.task_name.lower() != "post image" or job.status != 1:
             raise Exception("Job is not valid for posting an image")
 
-        blob_url = job.task_id
+        asset_id = job.task_id
+        asset = db_session.query(MediaAsset).filter_by(id=asset_id).first()
+        if not asset:
+            raise Exception("Asset not found")
+        
+        if not asset.media_blob_url or not asset.caption:
+            raise Exception("No URL or Caption for this asset")
 
         instagram_api.refresh_access_token()
 
         # Call the Instagram API to upload and publish the picture
-        instagram_api.upload_and_publish_pic(blob_url, caption=caption)
+        instagram_api.upload_and_publish_pic(asset.media_blob_url, caption=asset.caption)
         
         # Update the job status to indicate it has been processed (status 2)
         job.status = 2

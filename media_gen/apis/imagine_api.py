@@ -68,7 +68,7 @@ class ImagineArtAI:
 
         try:
             # Send request to the API with a timeout
-            response = requests.post(url, headers=headers, files=payload, timeout=15)
+            response = requests.post(url, headers=headers, files=payload, timeout=30)
             response.raise_for_status()  # Raise an HTTPError if the response status is 4xx or 5xx
         except requests.exceptions.Timeout:
             logging.error("Request to ImagineArtAI API timed out.")
