@@ -72,18 +72,18 @@ class ImagineArtAI:
             response.raise_for_status()  # Raise an HTTPError if the response status is 4xx or 5xx
         except requests.exceptions.Timeout:
             logging.error("Request to ImagineArtAI API timed out.")
-            return "Image Generation Timed Out", None
+            raise
         except requests.exceptions.RequestException as e:
             logging.error(f"Network error during API request: {e}")
-            return f"Network error: {e}", None
+            raise
         except Exception as e:
             logging.error(f"Unexpected error during API request: {e}")
-            return f"Unexpected error: {e}", None
+            raise
 
         # Check if the response is valid
         if response.status_code != 200:
             logging.error(f"API error: {response.status_code}, {response.text}")
-            return "Image Generation Failed", None
+            raise
 
         # Define where to save the image
         image_path = os.path.join(os.getcwd(), "generated_image.png")
@@ -92,10 +92,10 @@ class ImagineArtAI:
             with open(image_path, "wb") as file:
                 file.write(response.content)
             logging.info(f"Image successfully saved at {image_path}")
-            return "Image Successfully Generated", image_path
+            return image_path
         except OSError as e:
             logging.error(f"File system error while saving image: {e}")
-            return "Error Saving Image", None
+            raise
         except Exception as e:
             logging.error(f"Unexpected error while saving image: {e}")
-            return "Error Saving Image", None
+            raise

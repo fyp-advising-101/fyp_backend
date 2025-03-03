@@ -304,6 +304,7 @@ def get_category_options_from_media_gen_option(option_id):
         "id": option.id,
         "title": option.title,
         "prompt_text": option.prompt_text,
+        "chroma_query": option.chroma_query,
         "option_id": option.option_id
     } for option in category_options]
 
@@ -319,6 +320,7 @@ def add_media_category_option():
         new_option = MediaCategoryOptions(
             title=data['title'],
             prompt_text=data['prompt_text'],
+            chroma_query=data['chroma_query'],
             option_id=data['option_id']  # This links to the parent media gen option
         )
         db_session.add(new_option)
@@ -343,6 +345,7 @@ def get_media_category_option(option_id):
         "id": option.id,
         "title": option.title,
         "prompt_text": option.prompt_text,
+        "chroma_query": option.chroma_query,
         "option_id": option.option_id
     })
 
@@ -356,6 +359,7 @@ def get_all_media_category_options():
             "id": option.id,
             "title": option.title,
             "prompt_text": option.prompt_text,
+            "chroma_query": option.chroma_query,
             "option_id": option.option_id
         } for option in options
     ])
@@ -372,6 +376,7 @@ def edit_media_category_option(option_id):
     try:
         option.title = data.get('title', option.title)
         option.prompt_text = data.get('prompt_text', option.prompt_text)
+        option.prompt_text = data.get('chroma_query', option.chroma_query)
         option.option_id = data.get('option_id', option.option_id)
         db_session.commit()
         return jsonify({"message": "Media category option updated successfully"})

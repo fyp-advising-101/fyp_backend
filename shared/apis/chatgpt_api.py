@@ -137,9 +137,9 @@ class ChatGptApi:
         )
 
         user_prompt = (
-            f"Based on the following context, generate a detailed image generation prompt that "
+            f"You are given an image prompt context from a vector database and the question used to query into the vector database generate a detailed image generation prompt that "
             f"describes what to depict in a creative and inspiring manner:\n\n"
-            f"Context: {context}\n\nImage Generation Prompt:"
+            f"{context}\n\nImage Generation Prompt:"
         )
 
         try:
@@ -157,6 +157,9 @@ class ChatGptApi:
 
             generated_prompt = completion.choices[0].message.content.strip()
             logging.info("Image prompt successfully generated.")
+            logging.info("Context Used: " , context)
+            logging.info("Generated Prompt: " , generated_prompt)
+
             return generated_prompt 
 
         except requests.exceptions.RequestException as e:

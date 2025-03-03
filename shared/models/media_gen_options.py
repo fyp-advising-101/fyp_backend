@@ -8,6 +8,5 @@ class MediaGenOptions(Base):
     category = Column(String(255), nullable=False)
     media_type = Column(String(255), nullable=False)
     description = Column(String(255), nullable=True)
-    question = Column(Text, nullable=True)  # New column to store the question
     # Relationship back to MediaCategoryOptions (one-to-many)
     category_options = relationship("MediaCategoryOptions", back_populates="media_gen_option")

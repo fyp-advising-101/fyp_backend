@@ -82,17 +82,18 @@ def generate_image_route(job_id):
 
         if not media_gen_option:
             raise Exception("Media Generation Option not found")
-
-        category = media_gen_option.category  # ✅ Get the category
-
-        # Ensure that we have a question field to use for embedding
-        if not hasattr(media_gen_option, "question") or not media_gen_option.question:
-            raise Exception("No question found for this media generation option")
-
-        question_text = media_gen_option.question
+        
+        category_options = media_gen_option.category_options
+        if not category_options:
+            raise Exception("No category options found for this media generation option")
+        
+        # Randomly select one MediaCategoryOption
+        selected_option = random.choice(category_options)
+        prompt_text = selected_option.prompt_text
+        chroma_query = selected_option.chroma_query
 
         # Step 3: Generate an Embedding for the Question
-        question_embedding = chatgpt_api.get_openai_embedding(question_text)
+        question_embedding = chatgpt_api.get_openai_embedding(chroma_query)
 
         # Step 4: Query ChromaDB for the Most Relevant Context
         results = collection.query(
@@ -110,16 +111,16 @@ def generate_image_route(job_id):
 
         # Step 6: Generate a More Detailed AI Image Prompt Using ChatGPT
         prompt = chatgpt_api.generate_image_generation_prompt(
-            f"Context: {context}\nOriginal Question: {question_text}"
+            f"Prompt: {prompt_text}\nContext: {context}\nOriginal Question: {chroma_query}"
         )
 
         # Step 7: Generate the Image Using ImagineArtAI
         imagine = ImagineArtAI(api_key=IMAGINE_API_KEY)
-        response_data, image_path = imagine.generate_image(prompt)
+        image_path = imagine.generate_image(prompt)
 
         # Step 8: Upload the Generated Image to Azure Blob Storage
         upload_result = azureBlob.upload_file(image_path, "image", "image/png")
-        image_url = upload_result.get("blob_url")
+        blob_url = upload_result.get("blob_url")
 
         # Step 9: Update the Current Job Status
         job.status = 2
@@ -129,7 +130,7 @@ def generate_image_route(job_id):
         # Step 10: Create a New Job with Task Name "post image"
         new_job = Job(
             task_name="post image",
-            task_id=image_url,
+            task_id=blob_url,
             scheduled_date=(datetime.datetime.now() - timedelta(days=1)).date(),
             status=0,
             error_message=None,
@@ -140,10 +141,9 @@ def generate_image_route(job_id):
         db_session.commit()
 
         return jsonify({
-            "response": response_data,
-            "image_url": image_url,
-            "context_used": context,
-            "category": category,  # ✅ Include the category
+            "blob_url": blob_url,
+            "chroma_query": selected_option.chroma_query,
+            "category": media_gen_option.category,  
             "job_id": job.id,
             "new_job_id": new_job.id
         }), 200
