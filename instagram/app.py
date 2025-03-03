@@ -79,4 +79,4 @@ def post_image_route(job_id):
         db_session.close()
 
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=3004)
+    app.run(host="0.0.0.0", port=3003)

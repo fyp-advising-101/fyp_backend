@@ -39,7 +39,6 @@ logging.basicConfig(
 )
 
 
-
 @app.route("/", methods=["POST"])
 def webhook():
     """
