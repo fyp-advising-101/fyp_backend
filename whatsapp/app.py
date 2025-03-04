@@ -109,7 +109,7 @@ def post_image_whatsapp(job_id):
             raise Exception("Job not found")
         
         # Validate that the job is for posting an image and is pending (status 1)
-        if job.task_name.lower() != "post image" or job.status != 1:
+        if job.task_name.lower() != "post image whatsapp" or job.status != 1:
             raise Exception("Job is not valid for posting an image")
         
         # Retrieve the media asset using the job's task_id (asset id)

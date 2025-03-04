@@ -140,8 +140,8 @@ def generate_image_route(job_id):
         db_session.commit()
 
         # Step 10: Create a New Job with Task Name "post image"
-        new_job = Job(
-            task_name="post image",
+        insta_job = Job(
+            task_name="post image instagram",
             task_id=new_asset.id,
             scheduled_date=(datetime.datetime.now() - timedelta(days=1)).date(),
             status=0,
@@ -149,7 +149,19 @@ def generate_image_route(job_id):
             created_at=datetime.datetime.now().date(),
             updated_at=datetime.datetime.now().date()
         )
-        db_session.add(new_job)
+        db_session.add(insta_job)
+
+        whats_job = Job(
+            task_name="post image whatsapp",
+            task_id=new_asset.id,
+            scheduled_date=(datetime.datetime.now() - timedelta(days=1)).date(),
+            status=0,
+            error_message=None,
+            created_at=datetime.datetime.now().date(),
+            updated_at=datetime.datetime.now().date()
+        )
+        db_session.add(whats_job)
+        
         db_session.commit()
 
         return jsonify({
@@ -158,7 +170,8 @@ def generate_image_route(job_id):
             "prompt_text": selected_option.prompt_text,  
             "category": media_gen_option.category,  
             "job_id": job.id,
-            "new_job_id": new_job.id
+            "insta_job_id": insta_job.id,
+            "whats_job_id": whats_job.id
         }), 200
 
     except Exception as e:

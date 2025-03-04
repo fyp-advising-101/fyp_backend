@@ -22,10 +22,6 @@ logging.basicConfig(
 
 Base.metadata.create_all(bind=engine)
 
-scraping_url = ""
-media_gen_url = ""
-instagram_url = ""
-whatsapp_url = ""
 
 def add_job(task_name: str, scheduled_date: datetime.datetime):
     """
@@ -63,6 +59,7 @@ def get_next_monday(today: datetime.date) -> datetime.date:
     days_ahead = 7 - weekday if weekday != 0 else 7
     return today + datetime.timedelta(days=days_ahead)
 
+
 def initiate_tasks():
     """
     Every 30 minutes, check the job_scheduler table for pending jobs whose scheduled date is now (or in the past).
@@ -96,16 +93,15 @@ def initiate_tasks():
 
             
             # Determine the URL based on task name and append job id as a path parameter.
-            if "web scrape" in task_lower:
+            if "web scrape" == task_lower:
                 url_to_call = f"https://scraper.bluedune-c06522b4.uaenorth.azurecontainerapps.io/website_scrape/{job.id}"
-            elif "insta scrape" in task_lower:
+            elif "insta scrape" == task_lower:
                 url_to_call = f"https://scraper.bluedune-c06522b4.uaenorth.azurecontainerapps.io/instagram_scrape/{job.id}"
-            elif "create media" in task_lower:
+            elif "create media" == task_lower:
                 url_to_call = f"http://localhost:3002/generate-image/{job.id}"
-            elif "post image" in task_lower:
-                if "whatsapp" in task_lower:
-                    url_to_call = f"http://localhost:3000/post-image/{job.id}"
-                else:
+            elif "post image whatsapp" == task_lower:
+                url_to_call = f"http://localhost:3000/post-image/{job.id}"
+            elif "post image instagram" == task_lower:
                     url_to_call = f"http://localhost:3003/post-image/{job.id}"
             else:
                 logging.info("No matching endpoint for task: %s", job.task_name)
@@ -113,7 +109,7 @@ def initiate_tasks():
 
             # Send an HTTP GET request to the selected endpoint.
             try:
-                response = requests.get(url_to_call)
+                response = requests.post(url_to_call)
 
                 if response.status_code != 200:
                     job.status = -1

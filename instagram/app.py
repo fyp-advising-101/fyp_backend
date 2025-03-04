@@ -22,7 +22,6 @@ ACCESS_TOKEN = key_vault.get_secret("INSTAGRAM-ACCESS-TOKEN")
 INSTAGRAM_USER_ID = key_vault.get_secret("INSTAGRAM-USER-ID")
 AZURE_STORAGE_CONNECTION_STRING =key_vault.get_secret("posting-connection-key")
 
-
 # Initialize NovitaAI and ChatGPT API instances
 azureBlob = AzureBlobManager(AZURE_STORAGE_CONNECTION_STRING)
 instagram_api = InstagramAPI(APP_ID, APP_SECRET, ACCESS_TOKEN, INSTAGRAM_USER_ID, azureBlob)
@@ -53,7 +52,7 @@ def post_image_route(job_id):
         
         
         # Validate that the job is for posting an image and is pending (status 1)
-        if job.task_name.lower() != "post image" or job.status != 1:
+        if job.task_name.lower() != "post image instagram" or job.status != 1:
             raise Exception("Job is not valid for posting an image")
 
         asset_id = job.task_id
