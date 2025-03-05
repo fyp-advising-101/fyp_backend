@@ -10,6 +10,7 @@ from shared.models.job import Job
 from shared.database import engine, SessionLocal
 from sqlalchemy.sql import text
 from shared.apis.chatgpt_api import ChatGptApi
+from shared.models.media_asset import MediaAsset
 from datetime import timedelta
 import datetime
 
@@ -20,7 +21,6 @@ APP_SECRET = key_vault.get_secret("APP-SECRET")
 ACCESS_TOKEN = key_vault.get_secret("INSTAGRAM-ACCESS-TOKEN")
 INSTAGRAM_USER_ID = key_vault.get_secret("INSTAGRAM-USER-ID")
 AZURE_STORAGE_CONNECTION_STRING =key_vault.get_secret("posting-connection-key")
-
 
 # Initialize NovitaAI and ChatGPT API instances
 azureBlob = AzureBlobManager(AZURE_STORAGE_CONNECTION_STRING)
@@ -42,27 +42,31 @@ def post_image_route(job_id):
     - Updates the job's status to 2 and commits the changes.
     In case of an error, updates the job status to -1 and records the error message.
     """
-    data = request.get_json()
-    caption = data.get("caption", "Automated post via Instagram API")
-    
     db_session = SessionLocal()
     job = None
     try:
         # Query the job by job_id
         job = db_session.query(Job).filter(Job.id == job_id).first()
         if not job:
-            return jsonify({"error": "Job not found"}), 404
+            raise Exception("Job not found")
+        
         
         # Validate that the job is for posting an image and is pending (status 1)
-        if job.task_name.lower() != "post image" or job.status != 1:
-            return jsonify({"error": "Job is not valid for posting an image"}), 400
+        if job.task_name.lower() != "post image instagram" or job.status != 1:
+            raise Exception("Job is not valid for posting an image")
 
-        blob_url = job.task_id
+        asset_id = job.task_id
+        asset = db_session.query(MediaAsset).filter_by(id=asset_id).first()
+        if not asset:
+            raise Exception("Asset not found")
+        
+        if not asset.media_blob_url or not asset.caption:
+            raise Exception("No URL or Caption for this asset")
 
         instagram_api.refresh_access_token()
 
         # Call the Instagram API to upload and publish the picture
-        instagram_api.upload_and_publish_pic(blob_url, caption=caption)
+        instagram_api.upload_and_publish_pic(asset.media_blob_url, caption=asset.caption)
         
         # Update the job status to indicate it has been processed (status 2)
         job.status = 2
@@ -72,21 +76,10 @@ def post_image_route(job_id):
         return jsonify({"message": "Image posted successfully", "job_id": job.id}), 200
 
     except Exception as e:
-        # Update the job status to -1 and record the error message if the job exists
-        if job:
-            try:
-                job.status = -1
-                job.error_message = str(e)
-                job.updated_at = datetime.datetime.now().date()
-                db_session.commit()
-            except Exception as update_err:
-                db_session.rollback()
-                print(f"Error updating job error status: {update_err}")
-        else:
-            db_session.rollback()
+        db_session.rollback()
         return jsonify({"error": str(e)}), 400
     finally:
         db_session.close()
 
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=3004)
+    app.run(host="0.0.0.0", port=3003)

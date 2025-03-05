@@ -7,9 +7,8 @@ class MediaCategoryOptions(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     title = Column(String(255), nullable=False)
     prompt_text = Column(Text, nullable=False)
-
+    chroma_query = Column(Text, nullable=False)  # New column to store the question
     # Foreign key referencing MediaGenOptions.id
     option_id = Column(Integer, ForeignKey("media_gen_options.id"), nullable=False)
-
     # Relationship to the parent table
-    media_gen_option = relationship("MediaGenOptions", back_populates="category_options")
+    media_gen_option = relationship("MediaGenOptions", back_populates="category_options") 

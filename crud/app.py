@@ -7,6 +7,7 @@ from shared.models.job import Job
 from shared.models.scrape_target import ScrapeTarget
 from shared.models.media_gen_options import MediaGenOptions
 from shared.models.media_category_options import MediaCategoryOptions
+from shared.models.media_asset import MediaAsset
 from shared.database import engine, SessionLocal
 import datetime
 
@@ -304,6 +305,7 @@ def get_category_options_from_media_gen_option(option_id):
         "id": option.id,
         "title": option.title,
         "prompt_text": option.prompt_text,
+        "chroma_query": option.chroma_query,
         "option_id": option.option_id
     } for option in category_options]
 
@@ -319,6 +321,7 @@ def add_media_category_option():
         new_option = MediaCategoryOptions(
             title=data['title'],
             prompt_text=data['prompt_text'],
+            chroma_query=data['chroma_query'],
             option_id=data['option_id']  # This links to the parent media gen option
         )
         db_session.add(new_option)
@@ -343,6 +346,7 @@ def get_media_category_option(option_id):
         "id": option.id,
         "title": option.title,
         "prompt_text": option.prompt_text,
+        "chroma_query": option.chroma_query,
         "option_id": option.option_id
     })
 
@@ -356,6 +360,7 @@ def get_all_media_category_options():
             "id": option.id,
             "title": option.title,
             "prompt_text": option.prompt_text,
+            "chroma_query": option.chroma_query,
             "option_id": option.option_id
         } for option in options
     ])
@@ -372,6 +377,7 @@ def edit_media_category_option(option_id):
     try:
         option.title = data.get('title', option.title)
         option.prompt_text = data.get('prompt_text', option.prompt_text)
+        option.prompt_text = data.get('chroma_query', option.chroma_query)
         option.option_id = data.get('option_id', option.option_id)
         db_session.commit()
         return jsonify({"message": "Media category option updated successfully"})
@@ -394,6 +400,89 @@ def delete_media_category_option(option_id):
     except Exception as e:
         db_session.rollback()
         return jsonify({"error": str(e)}), 400
+
+@app.route('/media-assets', methods=['POST'])
+def add_media_asset():
+    """Add a new media asset"""
+    data = request.json
+    db_session = SessionLocal()
+    try:
+        new_asset = MediaAsset(
+            media_blob_url=data['media_blob_url'],
+            caption=data.get('caption'),
+            media_type=data['media_type']
+        )
+        db_session.add(new_asset)
+        db_session.commit()
+        return jsonify({"message": "Media asset added successfully", "media_asset_id": new_asset.id}), 201
+    except Exception as e:
+        db_session.rollback()
+        return jsonify({"error": str(e)}), 400
+
+@app.route('/media-assets/<int:asset_id>', methods=['PUT'])
+def edit_media_asset(asset_id):
+    """Edit an existing media asset"""
+    data = request.json
+    db_session = SessionLocal()
+    asset = db_session.query(MediaAsset).filter_by(id=asset_id).first()
+    if not asset:
+        return jsonify({"error": "Media asset not found"}), 404
+
+    try:
+        asset.media_blob_url = data.get('media_blob_url', asset.media_blob_url)
+        asset.caption = data.get('caption', asset.caption)
+        asset.media_type = data.get('media_type', asset.media_type)
+        db_session.commit()
+        return jsonify({"message": "Media asset updated successfully"})
+    except Exception as e:
+        db_session.rollback()
+        return jsonify({"error": str(e)}), 400
+
+@app.route('/media-assets/<int:asset_id>', methods=['DELETE'])
+def delete_media_asset(asset_id):
+    """Delete a media asset"""
+    db_session = SessionLocal()
+    asset = db_session.query(MediaAsset).filter_by(id=asset_id).first()
+    if not asset:
+        return jsonify({"error": "Media asset not found"}), 404
+
+    try:
+        db_session.delete(asset)
+        db_session.commit()
+        return jsonify({"message": "Media asset deleted successfully"})
+    except Exception as e:
+        db_session.rollback()
+        return jsonify({"error": str(e)}), 400
+
+@app.route('/media-assets/<int:asset_id>', methods=['GET'])
+def get_media_asset(asset_id):
+    """Get a single media asset by ID"""
+    db_session = SessionLocal()
+    asset = db_session.query(MediaAsset).filter_by(id=asset_id).first()
+    if not asset:
+        return jsonify({"error": "Media asset not found"}), 404
+
+    return jsonify({
+        "id": asset.id,
+        "media_blob_url": asset.media_blob_url,
+        "caption": asset.caption,
+        "media_type": asset.media_type
+    })
+
+@app.route('/media-assets', methods=['GET'])
+def get_all_media_assets():
+    """Get all media assets"""
+    db_session = SessionLocal()
+    assets = db_session.query(MediaAsset).all()
+    return jsonify([
+        {
+            "id": asset.id,
+            "media_blob_url": asset.media_blob_url,
+            "caption": asset.caption,
+            "media_type": asset.media_type
+        } for asset in assets
+    ])
+
 
 
 if __name__ == '__main__':

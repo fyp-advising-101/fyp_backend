@@ -1,0 +1,44 @@
+services:
+
+  whatsapp-service:
+    build:
+      context: .
+      dockerfile: whatsapp/Dockerfile
+    environment:
+      - PYTHONPATH=/app:/app/shared
+    ports:
+      - "3000:3000"
+
+  crud-service:
+    build:
+      context: .
+      dockerfile: crud/Dockerfile
+    environment:
+      - PYTHONPATH=/app:/app/shared
+    ports:
+      - "3001:3001"
+
+  media-gen-service: 
+    build:
+      context: .
+      dockerfile: media_gen/Dockerfile
+    environment:
+      - PYTHONPATH=/app:/app/shared
+    ports:
+      - "3002:3002"
+
+  instagram-service:
+    build:
+      context: .
+      dockerfile: instagram/Dockerfile
+    environment:
+      - PYTHONPATH=/app:/app/shared
+    ports:
+      - "3003:3003"
+
+  scheduler-service:
+    build:
+      context: .
+      dockerfile: scheduler/Dockerfile
+    environment:
+      - PYTHONPATH=/app:/app/shared

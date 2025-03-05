@@ -1,0 +1,39 @@
+# Use debian-based Python to avoid Alpine compatibility issues
+FROM python:3.12-slim
+
+# Add shared to PYTHONPATH
+ENV PYTHONPATH="/app:/app/shared"
+
+# Set the working directory inside the container
+WORKDIR /app
+
+# Copy the requirements file into the image
+COPY requirements.txt /app/requirements.txt
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    libatomic1 \
+    libstdc++6 \
+    libffi-dev \
+    openssl \
+    make \
+    cmake \
+    && rm -rf /var/lib/apt/lists/*
+
+# Upgrade pip and install dependencies
+RUN pip install --upgrade pip setuptools wheel
+
+# Install dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the rest of the app files and the shared module
+COPY . /app
+COPY ../shared /app/shared
+
+# Expose the service's port
+EXPOSE 3003
+
+# Define the command to run the application
+CMD ["python", "instagram/app.py"]

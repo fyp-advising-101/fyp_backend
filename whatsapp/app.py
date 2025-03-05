@@ -12,6 +12,7 @@ from apis.whatsapp_api import WhatsAppAPI
 from shared.apis.chatgpt_api import ChatGptApi  # Our ChatGPT API class
 from shared.apis.azure_key_vault import AzureKeyVault  # Our Key Vault access class
 from shared.models.job import Job
+from shared.models.media_asset import MediaAsset
 from shared.models.user_subscriptions import UserSubscriptions
 from shared.database import SessionLocal
 
@@ -37,7 +38,6 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
-
 
 
 @app.route("/", methods=["POST"])
@@ -88,34 +88,56 @@ def webhook():
     
     return "Replied to Message", 200
 
-@app.route("/post-image/<int:job_id>" , methods=["POST"])
-def post_image(job_id):
-    data = request.get_json()
-    caption = data.get("caption", "Here is your daily update!")
-    category = data.get("category", "sports")
+@app.route("/post-image/<int:job_id>", methods=["POST"])
+def post_image_whatsapp(job_id):
+    """
+    Route to post an image to WhatsApp.
+    - Optionally accepts a JSON payload with a "category" to filter user subscriptions.
+    - Queries the job with the given job_id and verifies that its task_name is "post image" and its status is 1.
+    - Retrieves the media asset using the job's task_id.
+    - Validates that the asset has both a media_blob_url and caption_blob_url.
+    - Fetches user subscriptions for the provided (or default) category.
+    - Calls the WhatsApp API to send a template message with the asset's details.
+    - Updates the job's status to 2 and commits the changes.
+    In case of an error, rolls back the transaction and returns an error message.
+    """
     db_session = SessionLocal()
     try:
         # Query the job by job_id
         job = db_session.query(Job).filter(Job.id == job_id).first()
-        users = db_session.query(UserSubscriptions).filter(UserSubscriptions.category == category).all()
         if not job:
-            return jsonify({"error": "Job not found"}), 404
+            raise Exception("Job not found")
         
-        # Validate that the job is for posting an image and is pending (status 0)
-        if job.task_name.lower() != "post image" or job.status != 1:
-            return jsonify({"error": "Job is not valid for posting an image"}), 400
-
-        blob_url = job.task_id
-
-        # Call the WhatsApp API to upload and publish the picture
+        # Validate that the job is for posting an image and is pending (status 1)
+        if job.task_name.lower() != "post image whatsapp" or job.status != 1:
+            raise Exception("Job is not valid for posting an image")
+        
+        # Retrieve the media asset using the job's task_id (asset id)
+        asset_id = job.task_id
+        asset = db_session.query(MediaAsset).filter_by(id=asset_id).first()
+        if not asset:
+            raise Exception("Asset not found")
+        
+        if not asset.media_blob_url or not asset.caption:
+            raise Exception("Asset missing media blob URL or caption blob URL")
+        
+        # Get category from payload if provided, default to "sports"
+        category = "sports"
+        
+        # Query user subscriptions for the given category
+        users = db_session.query(UserSubscriptions).filter(UserSubscriptions.category == category).all()
+        if not users:
+            raise Exception("No user subscriptions found for category: " + category)
+        
+        # Call the WhatsApp API to send the template message to each subscribed user
         for user in users:
-            whatsapp_api.send_template_message(user.phone_number, category, blob_url, caption)
+            whatsapp_api.send_template_message(user.phone_number, category, asset.media_blob_url, asset.caption)
         
-        # Update the job status to indicate it has been processed (status 2)
+        # Update job status to indicate successful processing (status 2)
         job.status = 2
         job.updated_at = datetime.datetime.now().date()
         db_session.commit()
-
+        
         return jsonify({"message": "Image posted successfully", "job_id": job.id}), 200
 
     except Exception as e:
@@ -123,7 +145,6 @@ def post_image(job_id):
         return jsonify({"error": str(e)}), 400
     finally:
         db_session.close()
-
 
 @app.route("/", methods=["GET"])
 def verify_webhook():

@@ -6,13 +6,19 @@ from shared.models.base import Base
 from shared.apis.azure_key_vault import AzureKeyVault
 from shared.apis.azure_blob import AzureBlobManager
 from shared.models.job import Job
+from shared.models.media_category_options import MediaCategoryOptions
+from shared.models.media_gen_options import MediaGenOptions
 from shared.database import engine, SessionLocal
+from sqlalchemy.orm import joinedload
 from sqlalchemy.sql import text
 from media_gen.apis.imagine_api import ImagineArtAI
+from shared.models.media_asset import MediaAsset
 from media_gen.apis.novita_api import NovitaAI 
 from shared.apis.chatgpt_api import ChatGptApi
 from datetime import timedelta
 import datetime
+import random
+from chromadb import HttpClient
 
 #Set up Azure Key Vault credentials
 key_vault = AzureKeyVault()
@@ -25,6 +31,9 @@ AZURE_STORAGE_CONNECTION_STRING =key_vault.get_secret("posting-connection-key")
 novita = NovitaAI(NOVITA_API_KEY)
 chatgpt_api = ChatGptApi(api_key=OPENAI_API_KEY, model="gpt-4o-mini")
 azureBlob = AzureBlobManager(AZURE_STORAGE_CONNECTION_STRING)
+# Initialize the vector database client and get the collection
+vector_client = HttpClient(host='vectordb.bluedune-c06522b4.uaenorth.azurecontainerapps.io', port=80)
+collection = vector_client.get_collection(name="aub_embeddings")
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
@@ -43,98 +52,131 @@ def validate_request(data):
 @app.route("/generate-image/<int:job_id>", methods=["POST"])
 def generate_image_route(job_id):
     """
-    Generate an image using ImagineArt AI for a given job.
-    - Validates the incoming request payload.
-    - Queries the job with the given job_id and verifies that its task_name is "create media" and status is 1.
-    - Generates an image prompt, calls the ImagineArtAI to generate an image, and uploads it to Azure Blob Storage.
-    - Updates the current job's status to 2.
-    - Creates a new job with task_name "post media", using the blob URL as task_id and scheduled_date set to yesterday.
-    Returns a JSON response with the image URL, response data, and job details.
+    Generate an image using ImagineArt AI by:
+    - Retrieving the related `question` from `media_gen_options`.
+    - Generating an embedding from `question` and querying ChromaDB.
+    - Getting the best-matching document from the results.
+    - Using ChatGPT to generate an enhanced image prompt.
+    - Sending the prompt to ImagineArtAI to generate an image.
+    - Uploading the generated image to Azure Blob Storage.
     """
-    data = request.get_json()
-    validation_error = validate_request(data)
-    if validation_error:
-        return jsonify({"error": validation_error}), 400
-
-    if not data:
-        return jsonify({"error": "No JSON payload provided"}), 400
-
-    context = data.get("context")
-    style = data.get("style")
-    if not context or not style:
-        return jsonify({"error": "Missing required parameters: 'context' and 'style'"}), 400
 
     db_session = SessionLocal()
-    job = None  # Initialize job so we can reference it in the exception block
+    job = None
     try:
-        # Query the job by job_id
+        # Step 1: Query the Job by ID
         job = db_session.query(Job).filter(Job.id == job_id).first()
         if not job:
-            return jsonify({"error": "Job not found"}), 404
+            raise Exception("Job not found")
 
-        # Verify that the job has the correct task name and status
+        # Verify that the job has the correct task type and status
         if job.task_name.lower() != "create media" or job.status != 1:
-            return jsonify({"error": "Job is not valid for image generation"}), 400
+            raise Exception("Job is not valid for image generation")
 
-        # Generate the image prompt using ChatGptApi
-        prompt = chatgpt_api.generate_image_generation_prompt(context)
-        if not prompt:
-            raise Exception("Prompt generation failed")
+        # Step 2: Retrieve MediaGenOption based on task_id
+        media_gen_option = (
+            db_session.query(MediaGenOptions)
+            .options(joinedload(MediaGenOptions.category_options))
+            .filter_by(id=job.task_id)
+            .first()
+        )
 
-        # Generate the image using ImagineArtAI
+        if not media_gen_option:
+            raise Exception("Media Generation Option not found")
+        
+        category_options = media_gen_option.category_options
+        if not category_options:
+            raise Exception("No category options found for this media generation option")
+        
+        # Randomly select one MediaCategoryOption
+        selected_option = random.choice(category_options)
+        prompt_text = selected_option.prompt_text
+        chroma_query = selected_option.chroma_query
+
+        # Step 3: Generate an Embedding for the Question
+        question_embedding = chatgpt_api.get_openai_embedding(chroma_query)
+
+        # Step 4: Query ChromaDB for the Most Relevant Context
+        results = collection.query(
+            query_embeddings=[question_embedding],
+            n_results=1,  # Get the best match
+            where={"id": {"$ne": "none"}}  # Ensure we're not matching empty results
+        )
+
+        # Step 5: Validate the Retrieved Documents
+        if "documents" not in results or not results["documents"]:
+            raise Exception("No relevant documents found in vector database.")
+
+        retrieved_docs = results["documents"][0]
+        context = "\n".join(retrieved_docs) if retrieved_docs else "No context available."
+
+        # Step 6: Generate a More Detailed AI Image Prompt Using ChatGPT
+        prompt = chatgpt_api.generate_image_generation_prompt(
+            f"Prompt: {prompt_text}\nContext: {context}\nOriginal Question: {chroma_query}"
+        )
+
+        # Step 7: Generate the Image Using ImagineArtAI
         imagine = ImagineArtAI(api_key=IMAGINE_API_KEY)
-        response_data, image_path = imagine.generate_image(prompt, style)
-        if not image_path:
-            raise Exception("Image generation failed")
+        image_path = imagine.generate_image(prompt)
 
-        # Upload the generated image to Azure Blob Storage
+        # Step 8: Upload the Generated Image to Azure Blob Storage
         upload_result = azureBlob.upload_file(image_path, "image", "image/png")
-        if not upload_result:
-            raise Exception("Failed to upload image to Azure")
+        media_blob_url = upload_result.get("blob_url")
 
-        # Extract the image URL from the upload result
-        image_url = upload_result.get("blob_url")
+        caption = chatgpt_api.generate_caption(context)
 
-        # Update the current job's status to 2 (processed successfully)
+        # Step 9: Update the Current Job Status
         job.status = 2
         job.updated_at = datetime.datetime.now().date()
         db_session.commit()
 
-        # Create a new job with task name "post media"
-        new_job = Job(
-            task_name="post media",
-            task_id=image_url,  # Using the image URL as the task identifier
+        new_asset = MediaAsset(
+            media_blob_url=media_blob_url,
+            caption=caption,
+            media_type='image'
+        )
+
+        db_session.add(new_asset)
+        db_session.commit()
+
+        # Step 10: Create a New Job with Task Name "post image"
+        insta_job = Job(
+            task_name="post image instagram",
+            task_id=new_asset.id,
             scheduled_date=(datetime.datetime.now() - timedelta(days=1)).date(),
             status=0,
             error_message=None,
             created_at=datetime.datetime.now().date(),
             updated_at=datetime.datetime.now().date()
         )
-        db_session.add(new_job)
+        db_session.add(insta_job)
+
+        whats_job = Job(
+            task_name="post image whatsapp",
+            task_id=new_asset.id,
+            scheduled_date=(datetime.datetime.now() - timedelta(days=1)).date(),
+            status=0,
+            error_message=None,
+            created_at=datetime.datetime.now().date(),
+            updated_at=datetime.datetime.now().date()
+        )
+        db_session.add(whats_job)
+        
         db_session.commit()
 
         return jsonify({
-            "response": response_data,
-            "image_url": image_url,
+            "media_asset_id": new_asset.id,
+            "chroma_query": selected_option.chroma_query,
+            "prompt_text": selected_option.prompt_text,  
+            "category": media_gen_option.category,  
             "job_id": job.id,
-            "new_job_id": new_job.id
+            "insta_job_id": insta_job.id,
+            "whats_job_id": whats_job.id
         }), 200
 
     except Exception as e:
-        # If an error occurs, update the job's status to -1 and store the error message
-        if job:
-            try:
-                job.status = -1
-                job.error_message = str(e)
-                job.updated_at = datetime.datetime.now().date()
-                db_session.commit()
-            except Exception as update_err:
-                db_session.rollback()
-                print(f"Error updating job error status: {update_err}")
-        else:
-            db_session.rollback()
+        db_session.rollback()
         return jsonify({"error": str(e)}), 400
-
     finally:
         db_session.close()
 
