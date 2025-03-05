@@ -122,8 +122,7 @@ def post_image_whatsapp(job_id):
             raise Exception("Asset missing media blob URL or caption blob URL")
         
         # Get category from payload if provided, default to "sports"
-        data = request.get_json() or {}
-        category = data.get("category", "sports")
+        category = "sports"
         
         # Query user subscriptions for the given category
         users = db_session.query(UserSubscriptions).filter(UserSubscriptions.category == category).all()

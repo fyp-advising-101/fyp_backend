@@ -22,7 +22,6 @@ logging.basicConfig(
 
 Base.metadata.create_all(bind=engine)
 
-
 def add_job(task_name: str, scheduled_date: datetime.datetime):
     """
     Creates a new job entry in the job_scheduler table.
@@ -115,6 +114,7 @@ def initiate_tasks():
                     job.status = -1
                     job.error_message = f"HTTP {response.status_code}"
                     logging.error("Failed to initiate '%s' (ID: %d). HTTP %d", job.task_name, job.id, response.status_code, response.json())
+            
             except Exception as e:
                 job.status = -1
                 job.error_message = str(e)
