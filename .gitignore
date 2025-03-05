@@ -8,3 +8,5 @@ crud/__pycache__/
 shared/models/__pycache__/
 shared/apis/__pycache__/
 whatsapp/apis/__pycache__/
+instagram/apis/__pycache__/
+media_gen/apis/__pycache__/

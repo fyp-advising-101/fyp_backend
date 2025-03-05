@@ -69,10 +69,10 @@ class WhatsAppAPI:
         data = {
             "messaging_product": "whatsapp",
             "recipient_type": "individual",
-            "to": "+96171482911",
+            "to": phone_number,
             "type": "template",
             "template": {
-                "name": "sports",
+                "name": template,
                 "language": {
                 "code": "en"
                 },
@@ -83,7 +83,7 @@ class WhatsAppAPI:
                     {
                         "type": "image",
                         "image": {
-                        "link": "https://postingoninstagram.blob.core.windows.net/media-gen/images/146aa72c8c29448fa0fa9484cc745467_generated_image.png"
+                        "link": image_url
                         }
                     }
                     ]
@@ -97,7 +97,7 @@ class WhatsAppAPI:
                     },
                     {
                         "type": "text",
-                        "text": "There is a sports event tomorrow. FEA will play against OSB!"
+                        "text": caption
                     }
                     ]
                 }
