@@ -3,6 +3,7 @@ import requests
 import logging
 import os, sys
 from chromadb import HttpClient
+import chromadb.utils.embedding_functions as embedding_functions
 import datetime
 import asyncio
 
@@ -16,6 +17,7 @@ from shared.models.job import Job
 from shared.models.media_asset import MediaAsset
 from shared.models.user_subscriptions import UserSubscriptions
 from shared.database import SessionLocal
+from shared.apis.langchain_manager import LangChainManager
 
 app = Flask(__name__)
 
@@ -29,10 +31,15 @@ openai_api_key = vault.get_secret("OPENAI-API-KEY")
 
 chatgpt_api = ChatGptApi(api_key=openai_api_key, model="gpt-4")
 whatsapp_api = WhatsAppAPI(graph_api_token=GRAPH_API_TOKEN)
+langchain_manager = LangChainManager(openai_api_key)
 
 # Initialize the vector database client and get the collection
 vector_client = HttpClient(host='vectordb.bluedune-c06522b4.uaenorth.azurecontainerapps.io', port=80)
-collection = vector_client.get_collection(name="aub_embeddings")
+collection = vector_client.get_collection(name="aub_embeddings", 
+    embedding_function = embedding_functions.OpenAIEmbeddingFunction(
+        api_key=openai_api_key,
+        model_name="text-embedding-3-large")
+        )
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -44,8 +51,12 @@ async def process_user_message(user_number, message_text, message_id):
     # Send "Working on it..."
     whatsapp_api.reply_to_user(user_number, "Working on it...", message_id)
 
-    # Use the ChatGptApi instance to generate a GPT response
-    chatbot_response = chatgpt_api.get_response_from_gpt(message_text, collection)
+    try:
+        # Use the ChatGptApi instance to generate a GPT response
+        chatbot_response = langchain_manager.get_response_from_gpt(message_text, collection, user_number)
+    except ValueError as e:
+        chatbot_response = "I'm sorry, but I can't help with that."
+        logging.error(e)
 
     # Reply to the user with the chatbot's response
     whatsapp_api.reply_to_user(user_number, chatbot_response, message_id)

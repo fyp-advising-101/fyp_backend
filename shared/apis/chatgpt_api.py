@@ -49,73 +49,7 @@ class ChatGptApi:
             logging.error(f"Unexpected error generating embedding: {e}")
             raise
 
-    def get_response_from_gpt(self, message_text: str, collection) -> str:
-        """
-        Retrieves a response from GPT using a vector-based context retrieval step.
-        
-        Args:
-            message_text (str): The user's question or prompt.
-            collection: A vector store or database collection that supports the 'query' method 
-                        to retrieve context based on embeddings.
-
-        Returns:
-            str: The GPT-generated response.
-
-        Raises:
-            Exception: If the API request or vector retrieval fails.
-        """
-        try:
-            # 1. Generate embeddings for the user query
-            embeddings = self.get_openai_embedding(message_text)
-
-            # 2. Query your vector store for context
-            results = collection.query(
-                embeddings, 
-                n_results=30,  
-                where={"id": {"$ne": "none"}}
-            )
-
-            # 3. Validate the retrieved documents
-            if "documents" not in results or not results["documents"]:
-                raise ValueError("No relevant documents found in vector database.")
-
-            retrieved_docs = results["documents"][0]
-            context = "\n".join(retrieved_docs) if retrieved_docs else "No context available."
-
-            # 4. Construct the prompt for GPT
-            prompt = f"""You are an AI assistant answering questions about a university.
-
-            Context:
-            {context}
-
-            Question: {message_text}
-            Answer:
-            """
-
-            # 5. Get the GPT response
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": prompt}
-                ]
-            )
-
-            if not response.choices or not response.choices[0].message.content:
-                raise ValueError("Received an empty response from GPT.")
-
-            chatbot_response = response.choices[0].message.content.strip()
-            return chatbot_response
-
-        except requests.exceptions.RequestException as e:
-            logging.error(f"Network error while retrieving GPT response: {e}")
-            raise
-        except ValueError as e:
-            logging.error(f"Data validation error in GPT response: {e}")
-            raise
-        except Exception as e:
-            logging.error(f"Unexpected error while retrieving GPT response: {e}")
-            raise
+    
 
     def generate_image_generation_prompt(self, context: str) -> str:
         """
