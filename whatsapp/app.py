@@ -4,6 +4,7 @@ import logging
 import os, sys
 from chromadb import HttpClient
 import datetime
+import asyncio
 
 # Add the parent directory to sys.path to import local modules
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -38,6 +39,16 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
+
+async def process_user_message(user_number, message_text, message_id):
+    # Send "Working on it..."
+    whatsapp_api.reply_to_user(user_number, "Working on it...", message_id)
+
+    # Use the ChatGptApi instance to generate a GPT response
+    chatbot_response = chatgpt_api.get_response_from_gpt(message_text, collection)
+
+    # Reply to the user with the chatbot's response
+    whatsapp_api.reply_to_user(user_number, chatbot_response, message_id)
 
 
 @app.route("/", methods=["POST"])
@@ -80,11 +91,9 @@ def webhook():
             return result
         
         logging.info("Incoming message:" + message_text)
-        # Use the ChatGptApi instance to generate a GPT response
-        chatbot_response = chatgpt_api.get_response_from_gpt(message_text, collection)
         
-        # Reply to the user with the chatbot's response
-        whatsapp_api.reply_to_user(user_number, chatbot_response, message_id)
+        asyncio.run(process_user_message(user_number, message_text, message_id))
+        
     
     return "Replied to Message", 200
 

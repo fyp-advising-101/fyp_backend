@@ -10,3 +10,4 @@ shared/apis/__pycache__/
 whatsapp/apis/__pycache__/
 instagram/apis/__pycache__/
 media_gen/apis/__pycache__/
+generated_image.png
