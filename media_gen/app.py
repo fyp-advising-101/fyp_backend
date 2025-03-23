@@ -154,7 +154,11 @@ def generate_image_route(job_id):
 
        
         # Step 9: Upload the Generated Image to Azure Blob Storage
-        upload_result = azureBlob.upload_file(image_path, "image", "image/png")
+        safe_category = media_gen_option.category.lower().replace(" ", "_")
+
+        # Add the category as part of the filename
+        upload_result = azureBlob.upload_file(image_path, f"{safe_category}/image", "image/png")
+
         media_blob_url = upload_result.get("blob_url")
 
         caption = chatgpt_api.generate_caption(context)
