@@ -1,7 +1,6 @@
 import requests
 import logging
 import os
-import random
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -17,10 +16,13 @@ class ImagineArtAI:
         self.api_key = api_key
         self.base_url = "https://api.vyro.ai/v2"
 
+
+    
+
     def generate_image(
         self,
         prompt: str,
-        style: str = random.choice(["flux-dev",'realistic']) ,
+        style: str,  
         model: str = "stable-diffusion-xl",
         width: int = 512,
         height: int = 512,
@@ -68,7 +70,7 @@ class ImagineArtAI:
 
         try:
             # Send request to the API with a timeout
-            response = requests.post(url, headers=headers, files=payload, timeout=30)
+            response = requests.post(url, headers=headers, files=payload, timeout=300)
             response.raise_for_status()  # Raise an HTTPError if the response status is 4xx or 5xx
         except requests.exceptions.Timeout:
             logging.error("Request to ImagineArtAI API timed out.")
