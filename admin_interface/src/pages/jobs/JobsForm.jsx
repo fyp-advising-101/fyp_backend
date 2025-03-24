@@ -7,6 +7,7 @@ import {
 } from '@mui/material';
 
 import { LocalizationProvider, DateTimePicker } from '@mui/x-date-pickers';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { useForm, Controller } from 'react-hook-form';
 import { jobsAPI, mediaGenOptionsAPI, scrapeTargetsAPI, mediaAssetsAPI } from '../../api';
 
