@@ -40,7 +40,7 @@ class InstagramAPI:
         }
 
         try:
-            response = requests.post(url, params=params, timeout=10)
+            response = requests.post(url, params=params, timeout=100)
             response.raise_for_status()
 
             new_access_token = response.json().get('access_token')
