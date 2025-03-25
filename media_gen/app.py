@@ -32,7 +32,7 @@ novita = NovitaAI(NOVITA_API_KEY)
 chatgpt_api = ChatGptApi(api_key=OPENAI_API_KEY, model="gpt-4o-mini")
 azureBlob = AzureBlobManager(AZURE_STORAGE_CONNECTION_STRING)
 # Initialize the vector database client and get the collection
-vector_client = HttpClient(host='vectordb.bluedune-c06522b4.uaenorth.azurecontainerapps.io', port=80)
+vector_client = HttpClient(host='20.203.61.164', port=8000)
 collection = vector_client.get_collection(name="aub_embeddings")
 
 app = Flask(__name__)

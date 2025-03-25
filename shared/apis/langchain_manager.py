@@ -34,14 +34,15 @@ class LangChainManager:
             def retrieve_context(query: str) -> str:
                 results = collection.query(
                     query_texts=[query],
-                    n_results=15,
+                    n_results=10,
                     where={"id": {"$ne": "none"}}
                 )
                 # Use your existing filtering logic.
                 retrieved_docs = [
                     doc for doc, score in zip(results["documents"][0], results["distances"][0])
-                    if score > 0.7
+                    #if score > 0.7
                 ]
+                logging.info("QUERY RESULTS: "+ str(retrieved_docs))
                 context = "\n".join(retrieved_docs) if retrieved_docs else "No context available."
                 return context
             
@@ -49,8 +50,13 @@ class LangChainManager:
                 name="VectorDB",
                 func=retrieve_context,
                 description="This tool retrieves context from the vector database. Make use of the chat history too."
-                    "Use it when additional domain-specific context about the American University of Beirut is needed to answer a question. Assume the user is asking about this university"
-                    "you will be using the previous conversation history if the user/human ask question on previous convoersation."
+                    "Use it when additional domain-specific context about the American University of Beirut is needed to answer a question. Assume the user is asking about this university, but don't include the university name in the query."
+                    "If the first call returns no relevant context, you MUST rephrase the query and use this tool again at least two more times."
+                    "if the user asks about a specific course code, retrieve its syllabus description from the catalogue."
+                    "Course codes usually have a 4-letter prefix and a 3-digit number. "
+                    "you will be using the previous conversation history if the user/human ask question on previous conversation."
+                    
+                    
             )
             
             chat_history = MessagesPlaceholder(variable_name="chat_history")

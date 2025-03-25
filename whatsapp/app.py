@@ -34,7 +34,7 @@ whatsapp_api = WhatsAppAPI(graph_api_token=GRAPH_API_TOKEN)
 langchain_manager = LangChainManager(openai_api_key)
 
 # Initialize the vector database client and get the collection
-vector_client = HttpClient(host='vectordb.bluedune-c06522b4.uaenorth.azurecontainerapps.io', port=80)
+vector_client = HttpClient(host='20.203.61.164', port=8000)
 collection = vector_client.get_collection(name="aub_embeddings", 
     embedding_function = embedding_functions.OpenAIEmbeddingFunction(
         api_key=openai_api_key,
