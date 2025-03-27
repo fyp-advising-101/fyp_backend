@@ -2,7 +2,7 @@ import os
 import logging
 from langchain.agents import initialize_agent, Tool, AgentType
 from langchain.chat_models import ChatOpenAI
-from langchain.memory import ConversationBufferMemory
+from langchain.memory import ConversationBufferWindowMemory
 from langchain.prompts import MessagesPlaceholder
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -24,10 +24,11 @@ class LangChainManager:
         """
         if user_phone_number not in self.user_agents:
             # Create conversation memory for this user.
-            memory = ConversationBufferMemory(
-                memory_key="chat_history",   # Key used to store the conversation
-                input_key="input",           # Input key for the agent
-                return_messages=True
+            memory = ConversationBufferWindowMemory(
+                memory_key="chat_history",
+                input_key="input",
+                return_messages=True,
+                k=0  # Only keep last 3 exchanges # REMOVE
             )
             
             # Define a retrieval tool that queries your ChromaDB collection.
@@ -37,26 +38,59 @@ class LangChainManager:
                     n_results=10,
                     where={"id": {"$ne": "none"}}
                 )
-                # Use your existing filtering logic.
-                retrieved_docs = [
-                    doc for doc, score in zip(results["documents"][0], results["distances"][0])
-                    #if score > 0.7
-                ]
-                logging.info("QUERY RESULTS: "+ str(retrieved_docs))
-                context = "\n".join(retrieved_docs) if retrieved_docs else "No context available."
+                combined_chunks = []
+                for i, chunk_id in enumerate(results['ids'][0]):
+                    chunk_text = results['ids'][0][i] + ": " + results['documents'][0][i]
+                    
+
+                    # Step 2: Extract base URL and index
+                    if "-" not in chunk_id:
+                        combined_chunks.append(chunk_text)
+                        continue  # Skip malformed id
+       
+                    try:
+                        base, idx_str = chunk_id.rsplit("-", 1)
+                        next_idx = int(idx_str) + 1
+                    except ValueError:
+                        combined_chunks.append(chunk_text)
+                        continue  # Index isn't a number
+
+                    next_id = f"{base}-{next_idx}"
+                    
+                    # Step 3: Try to get the next chunk
+                    next_result = collection.get(
+                        ids=[next_id],
+                        include=["documents"]
+                    )
+                    if next_result['documents']:
+                        combined_chunks.append(chunk_text + next_result['documents'][0])
+                    else:
+                        combined_chunks.append(chunk_text)
+                logging.info("QUERY RESULTS: "+ str(combined_chunks))
+
+                context = "\n \n".join(combined_chunks) if combined_chunks else "No context available."
                 return context
             
             vector_tool = Tool(
                 name="VectorDB",
                 func=retrieve_context,
-                description="This tool retrieves context from the vector database. Make use of the chat history too."
-                    "Use it when additional domain-specific context about the American University of Beirut is needed to answer a question. Assume the user is asking about this university, but don't include the university name in the query."
-                    "If the first call returns no relevant context, you MUST rephrase the query and use this tool again at least two more times."
-                    "if the user asks about a specific course code, retrieve its syllabus description from the catalogue."
-                    "Course codes usually have a 4-letter prefix and a 3-digit number. "
-                    "you will be using the previous conversation history if the user/human ask question on previous conversation."
-                    
-                    
+                description="You are a university assistant. Use This tool to retrieve chunks relevant to queries. Make use of the chat history too."
+                    "Assume the user is asking about the American University of Beirut, but don't include the university name in the query."
+                    "if the user's input is too vague, ask for more clarification"
+                    "DO NOT speculate or infer information that is not explicitly stated in the chunks. prerequisites should be EXPLICITLY stated in the same chunk as the course's description, otherwise, ignore them. chunks are separated by two new lines. Every chunk is preceded by the name of the document it comes from, and this document name could provide helpful information, like the year of publication of the document. Assume the user is asking about information from the current year unless stated otherwise."
+                    "DO NOT give information about events that occured before 2025, unless the user says otherwise."
+                    "If any acronym or abbreviation is to be used in the query, include the acronym/abbreviation three times consecutively in small letters. an example of an acronym is 'ieee' or 'IEEE'"
+                    "Course codes are typically 4 letters followed by a space and 3 digits. If a course code should be included in a query, include the course code three times consecutively in small letters only."
+                    "The following is an example of a chunk that you might encounter, as you will notice, the prerequisites are listed directly after the course description. In this case, the prerequisite is eece 330: "
+                    """
+                    'EECE 332 Object-Oriented and Effective Java Programming 3 cr.
+                    This course covers object-oriented programming in addition to other essential and effective programming concepts using Java. 
+                    Topics include: basic UML, data abstraction 
+                    and encapsulation, inheritance,  polymorphism,  generics, exception handling, GUI programming, data persistence, database connectivity with JDBC, multi-threading 
+                    and basic mobile app development. Other topics might include internationalization, 
+                    web programming, and visualization. This course has a substantial lab component.
+                    Prerequisite: EECE 330.'
+                    """
             )
             
             chat_history = MessagesPlaceholder(variable_name="chat_history")
@@ -64,7 +98,7 @@ class LangChainManager:
             # Initialize the agent using the Zero-Shot React description approach.
             agent = initialize_agent(
                 tools=[vector_tool],
-                llm=ChatOpenAI(model_name="gpt-4", openai_api_key=self.openai_api_key),
+                llm=ChatOpenAI(model_name="gpt-4o", openai_api_key=self.openai_api_key),
                 agent=AgentType.CHAT_CONVERSATIONAL_REACT_DESCRIPTION,
                 verbose=True,
                 memory=memory,
@@ -83,7 +117,11 @@ class LangChainManager:
         Uses the agent for the given user to generate a response to the message_text.
         The agent will automatically leverage conversation memory and call the retrieval tool as needed.
         """
-        agent = self.get_user_agent(user_phone_number, collection)
-        response = agent.run(message_text)
-        return response
+        while True:
+            try:
+                agent = self.get_user_agent(user_phone_number, collection)
+                response = agent.run(message_text)
+                return response
+            except Exception as e:
+                logging.error("trying again because "+ str(e))
 
