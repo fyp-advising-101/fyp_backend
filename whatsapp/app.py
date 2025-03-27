@@ -17,7 +17,7 @@ from shared.models.job import Job
 from shared.models.media_asset import MediaAsset
 from shared.models.user_subscriptions import UserSubscriptions
 from shared.database import SessionLocal
-from shared.apis.langchain_manager import LangChainManager
+from whatsapp.langchain_manager import LangChainManager
 
 app = Flask(__name__)
 
