@@ -28,7 +28,7 @@ class LangChainManager:
                 memory_key="chat_history",
                 input_key="input",
                 return_messages=True,
-                k=0  # Only keep last 3 exchanges # REMOVE
+                k=3  # Only keep last 3 exchanges
             )
             
             # Define a retrieval tool that queries your ChromaDB collection.
