@@ -18,6 +18,8 @@ from shared.models.media_asset import MediaAsset
 from shared.models.user_subscriptions import UserSubscriptions
 from shared.database import SessionLocal
 from whatsapp.langchain_manager import LangChainManager
+import threading
+
 
 app = Flask(__name__)
 
@@ -45,7 +47,12 @@ logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s - %(levelname)s - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
+    filename="app.log",  # This sends logs to the file
+    filemode="a"
 )
+
+def run_async_in_thread(coro):
+    asyncio.run(coro)
 
 async def process_user_message(user_number, message_text, message_id):
     # Send "Working on it..."
@@ -102,9 +109,9 @@ def webhook():
             return result
         
         logging.info("Incoming message:" + message_text)
-        
-        asyncio.run(process_user_message(user_number, message_text, message_id))
-        
+
+        threading.Thread(target=run_async_in_thread, args=(process_user_message(user_number, message_text, message_id),)).start()
+        logging.info("Langchain agent running, sending 200 to cloud api")
     
     return "Replied to Message", 200
 
