@@ -107,38 +107,6 @@ class ChatGptApi:
             logging.error(f"Unexpected error while generating image prompt: {e}")
             raise
 
-    def get_completion(self, prompt: str) -> str:
-        """
-        Get a raw ChatGPT response for a simple prompt (e.g., style selection).
-
-        Args:
-            prompt (str): The prompt string to send to the assistant.
-
-        Returns:
-            str: The assistant's text response.
-        """
-        try:
-            completion = self.client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0  # deterministic output for things like selecting a style
-            )
-            if not completion.choices or not completion.choices[0].message.content:
-                raise ValueError("Received an empty response from GPT.")
-
-            return completion.choices[0].message.content.strip()
-
-        except requests.exceptions.RequestException as e:
-            logging.error(f"Network error while getting completion: {e}")
-            raise
-        except ValueError as e:
-            logging.error(f"Validation error in completion response: {e}")
-            raise
-        except Exception as e:
-            logging.error(f"Unexpected error while getting completion: {e}")
-            raise
-
-
     def generate_caption(self, context: str) -> str:
         """
         Generates a creative caption based on the given context.
