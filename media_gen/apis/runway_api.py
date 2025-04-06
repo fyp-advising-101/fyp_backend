@@ -26,17 +26,6 @@ class RunwayAPI:
                        motion: int = 5, seconds: int = 5):
         """
         Generates a video based on a text prompt.
-        
-        Args:
-            prompt (str): Text prompt describing the video.
-            model (str): The model to use (default: "runway").
-            height (int): Video height in pixels.
-            width (int): Video width in pixels.
-            num_frames (int): Number of frames to generate.
-            seconds (int): Duration of the video in seconds.
-            
-        Returns:
-            str: Task ID for the video generation task.
         """
         url = f"{self.base_url}/runway/generate/text"
         
@@ -54,14 +43,12 @@ class RunwayAPI:
             response = requests.post(url, headers=self.headers, json=payload, timeout=30)
             response.raise_for_status()
             data = response.json()
-
-            print("heloooo", data)
             
-            if "task_id" not in data:
-                raise ValueError("No task ID returned in response")
+            if "uuid" not in data:
+                raise ValueError("No uuid returned in response")
             
-            logging.info(f"Video generation task started with ID: {data['task_id']}")
-            return data["task_id"]
+            logging.info(f"Video generation task started with ID: {data['uuid']}")
+            return data["uuid"]
             
         except requests.exceptions.RequestException as e:
             logging.error(f"Network error during video generation request: {e}")
@@ -72,7 +59,7 @@ class RunwayAPI:
             logging.error(f"Unexpected error during video generation: {e}")
             raise
     
-    def check_video_status(self, task_id: str):
+    def check_video_status(self, uuid: str):
         """
         Checks the status of a video generation task.
         
@@ -83,14 +70,14 @@ class RunwayAPI:
             dict: Status information including state and possibly video URL.
         """
         url = f"{self.base_url}/status"
-        params = {"task_id": task_id}
+        params = {"uuid": uuid}
         
         try:
             response = requests.get(url, headers=self.headers, params=params, timeout=30)
             response.raise_for_status()
             data = response.json()
             
-            logging.info(f"Video task status: {data.get('state', 'unknown')} for task {task_id}")
+            logging.info(f"Video task status: {data.get('status', 'unknown')} for task {uuid}")
             return data
             
         except requests.exceptions.RequestException as e:

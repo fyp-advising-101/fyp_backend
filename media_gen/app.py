@@ -247,7 +247,7 @@ def generate_video_route(job_id):
         # Step 4: Query ChromaDB for the Most Relevant Context
         results = collection.query(
             query_embeddings=[question_embedding],
-            n_results=3,  # Get top 3 results
+            n_results=1, 
             where={"id": {"$ne": "none"}}
         )
 
@@ -264,18 +264,18 @@ def generate_video_route(job_id):
         )
 
         # Step 7: Send request to Runway API to generate the video
-        task_id = runway_api.generate_video(
+        uuid = runway_api.generate_video(
             prompt=video_prompt
         )
 
-        if not task_id:
+        if not uuid:
             raise Exception("Failed to generate video")
 
         # Step 8: Create a Media Asset entry (without URL yet)
         caption = chatgpt_api.generate_video_caption(context, video_prompt, chroma_query)
         
         new_asset = MediaAsset(
-            media_blob_url=None,  # URL will be updated when video is ready
+            media_blob_url="None",  # URL will be updated when video is ready
             caption=caption,
             media_type='video'
         )
@@ -285,9 +285,9 @@ def generate_video_route(job_id):
         # Step 9: Create a job to monitor the video status
         monitor_job = Job(
             task_name="monitor video",
-            task_id=task_id,  # Store the Runway task ID
+            task_id=uuid,  # Store the Runway task ID
             scheduled_date=datetime.datetime.now(),
-            status=1,  # In progress
+            status=0,  # Pending
             error_message=None,
             created_at=datetime.datetime.now(),
             updated_at=datetime.datetime.now()
@@ -307,7 +307,7 @@ def generate_video_route(job_id):
         return jsonify({
             "message": "Video generation started successfully",
             "media_asset_id": new_asset.id,
-            "runway_task_id": task_id,
+            "runway_uuid": uuid,
             "monitor_job_id": monitor_job.id
         }), 200
 
@@ -341,7 +341,7 @@ def monitor_video_route(job_id):
             raise Exception("Job is not valid for video monitoring")
 
         # Step 2: Extract the Runway task ID and asset ID
-        task_id = job.task_id
+        uuid = job.task_id
         asset_id = None
         
         # Extract asset_id from error_message field where we temporarily stored it
@@ -357,18 +357,18 @@ def monitor_video_route(job_id):
             raise Exception("Media asset not found")
 
         # Step 4: Check video status - just a single check, not waiting
-        status = runway_api.check_video_status(task_id)
-        state = status.get("state", "").lower()
+        data = runway_api.check_video_status(uuid)
+        status = data.get("status", "").lower()
 
-        if state == "completed":
+        if status == "success":
             # Video is ready - update the asset with the video URL
-            video_url = status.get("video_url")
+            video_url = data.get("url")
             if not video_url:
                 raise Exception("Video completed but no URL provided")
-                
+              
             # Upload to Azure Blob Storage
             video_data = requests.get(video_url).content
-            temp_path = f"/tmp/runway_video_{task_id}.mp4"
+            temp_path = f"/tmp/runway_video_{uuid}.mp4"
             
             with open(temp_path, "wb") as f:
                 f.write(video_data)
@@ -417,9 +417,8 @@ def monitor_video_route(job_id):
                 "video_url": asset.media_blob_url,
                 "instagram_job_id": insta_job.id,
                 "whatsapp_job_id": whats_job.id
-            }), 200
-            
-        elif state == "failed":
+            }), 200        
+        elif status == "failed":
             # Video generation failed
             job.status = -1  # Error
             job.error_message = f"Video generation failed: {status.get('error', 'Unknown error')}"
@@ -429,14 +428,14 @@ def monitor_video_route(job_id):
             return jsonify({
                 "error": "Video generation failed", 
                 "details": status.get('error', 'Unknown error')
-            }), 400
-            
+            }), 400         
         else:
-            # Video is still processing - just return the current status
-            # The job remains in status 1 (in progress) so the scheduler will check again later
+            job.status = 0 
+            job.updated_at = datetime.datetime.now()
+            db_session.commit()
             return jsonify({
                 "message": "Video is still processing",
-                "state": state,
+                "state": data,
                 "media_asset_id": asset.id
             }), 200
 

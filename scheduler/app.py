@@ -88,20 +88,26 @@ def initiate_tasks():
             job.updated_at = datetime.datetime.now().date()
             db_session.commit()
             logging.info("Successfully initiated '%s' (ID: %d)", job.task_name, job.id)
-            time.sleep(2)
-
             
             # Determine the URL based on task name and append job id as a path parameter.
             if "web scrape" == task_lower:
                 url_to_call = f"https://scraper.bluedune-c06522b4.uaenorth.azurecontainerapps.io/website_scrape/{job.id}"
             elif "insta scrape" == task_lower:
                 url_to_call = f"https://scraper.bluedune-c06522b4.uaenorth.azurecontainerapps.io/instagram_scrape/{job.id}"
-            elif "create media" == task_lower:
+            elif "create image" == task_lower:
                 url_to_call = f"http://localhost:3002/generate-image/{job.id}"
+            elif "create video" == task_lower:
+                url_to_call = f"http://localhost:3002/generate-video/{job.id}"
+            elif "monitor video" == task_lower:
+                url_to_call = f"http://localhost:3002/monitor-video/{job.id}"
             elif "post image whatsapp" == task_lower:
                 url_to_call = f"http://localhost:3000/post-image/{job.id}"
             elif "post image instagram" == task_lower:
                     url_to_call = f"http://localhost:3003/post-image/{job.id}"
+            elif "post video whatsapp" == task_lower:
+                url_to_call = f"http://localhost:3000/post-video/{job.id}"
+            elif "post video instagram" == task_lower:
+                    url_to_call = f"http://localhost:3003/post-video/{job.id}"       
             else:
                 logging.info("No matching endpoint for task: %s", job.task_name)
                 continue
