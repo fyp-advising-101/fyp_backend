@@ -119,7 +119,7 @@ function ScrapeTargetsList() {
                 </TableCell>
               </TableRow>
             ) : (
-              scrapeTargets.map((target) => (
+              scrapeTargets.slice().reverse().map((target) => (
                 <TableRow key={target.id}>
                   <TableCell>{target.id}</TableCell>
                   <TableCell>{target.name}</TableCell>

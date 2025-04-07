@@ -136,7 +136,7 @@ function JobsList() {
                 </TableCell>
               </TableRow>
             ) : (
-              jobs.map((job) => (
+              jobs.slice().reverse().map((job) => (
                 <TableRow key={job.id}>
                   <TableCell>{job.id}</TableCell>
                   <TableCell>{job.task_name}</TableCell>

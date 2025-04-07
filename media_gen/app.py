@@ -103,7 +103,7 @@ def generate_image_route(job_id):
         context = "\n".join(retrieved_docs) if retrieved_docs else "No context available."
 
         # Step 6: Generate a More Detailed AI Image Prompt Using ChatGPT
-        image_prompt = chatgpt_api.generate_image_generation_prompt_funny(
+        image_prompt = chatgpt_api.generate_image_generation_prompt_informal(
             f"Context: {context}\nOriginal Question: {chroma_query}"
         )
         # Step 7: Ask ChatGPT to Recommend a Style

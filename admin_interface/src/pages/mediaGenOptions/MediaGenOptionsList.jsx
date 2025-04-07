@@ -120,7 +120,7 @@ function MediaGenOptionsList() {
                 </TableCell>
               </TableRow>
             ) : (
-              mediaGenOptions.map((option) => (
+              mediaGenOptions.slice().reverse().map((option) => (
                 <TableRow key={option.id}>
                   <TableCell>{option.id}</TableCell>
                   <TableCell>{option.category}</TableCell>

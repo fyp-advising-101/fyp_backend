@@ -134,7 +134,7 @@ function MediaAssetsList() {
                 </TableCell>
               </TableRow>
             ) : (
-              mediaAssets.map((asset) => (
+              mediaAssets.slice().reverse().map((asset) => (
                 <TableRow key={asset.id}>
                   <TableCell>{asset.id}</TableCell>
                   <TableCell>
