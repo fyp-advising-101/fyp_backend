@@ -204,7 +204,7 @@ class ChatGptApi:
             logging.error(f"Unexpected error while generating image prompt: {e}")
             raise
 
-    def generate_image_generation_prompt_funny(self, context: str) -> str:
+    def generate_image_generation_prompt_informal(self, context: str) -> str:
             """
             Generates an engaging and informal image generation prompt based on the given context.
             

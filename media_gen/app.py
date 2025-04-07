@@ -462,13 +462,10 @@ def test_image_prompt_route():
             f"Context: {context}\nOriginal Question: {query}"
         )
 
-        caption = chatgpt_api.generate_caption(context=context, chroma_query=query)
-        
         # Return the results
         return jsonify({
             "query": query,
             "generated_image_prompt": image_prompt,
-            "generated_caption" : caption
         }), 200
         
     except Exception as e:
