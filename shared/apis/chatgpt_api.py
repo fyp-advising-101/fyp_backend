@@ -63,48 +63,33 @@ class ChatGptApi:
             Exception: If the API request fails.
         """
         system_prompt = (
-            "You create image generation prompts with these mandatory requirements:\n"
-            "1. THEME: Always incorporate elements of the American University of Beirut and Middle Eastern aesthetics, "
-            "   architecture, landscapes, or cultural elements regardless of the specific content.\n"
-            "2. NO TEXT: Always include 'NO TEXT, NO WRITING, NO WORDS' in your prompt to ensure the image generator "
-            "   doesn't include any text, captions, signs, or written elements.\n"
-            "3. CONTEXT ADHERENCE: Base your prompt only on the factual information from the provided context.\n"
-            "4. CONTENT-SPECIFIC RULES:\n"
-            "   - FOR NEWS: Focus on depicting the location, key visual elements, and atmosphere of the news story. "
-            "     For academic news, show scholars in AUB settings. For achievements, show celebration scenes.\n"
-            "   - FOR EVENTS: For current/upcoming events, emphasize event atmosphere, venue decoration, and typical activities. "
-            "     For past events, create a visual that represents the essence of what happened without suggesting it's current.\n"
-            "   - FOR GENERAL INFORMATION: Create an illustrative scene that represents the information visually. For example, "
-            "     if sharing facts about campus buildings, show the architectural elements mentioned.\n"
-            "   - FOR 'DID YOU KNOW' CONTENT: Create visual representations of interesting facts without attempting to show text "
-            "     explaining the fact.\n"
-            "   - FOR ACADEMIC CONTENT: Show relevant academic settings like libraries, labs, classrooms with "
-            "     Middle Eastern architectural influence.\n"
-            "   - FOR MEMES/HUMOR: Create visually funny scenarios with exaggerated expressions, humorous situations "
-            "     in AUB settings, or playful representations of campus life.\n"
-            "5. MIDDLE EASTERN ELEMENTS: Incorporate authentic Middle Eastern architectural elements, colors, "
-            "   patterns, landscapes, or cultural references where appropriate.\n"
-            "6. SEASONS & TIME: If seasonality or time of day is mentioned or implied, reflect this accurately "
-            "   (AUB in spring, during sunset, at night, etc.).\n"
-            "7. ACCURACY: Never invent details not mentioned in the context, but do apply the AUB/Middle Eastern theme."
+        "You are a specialized AI image prompt engineer. Your task is to create clear, detailed, and visually coherent image prompts. "
+        "Always structure your prompts to include these essential elements: "
+        "1. SUBJECT: Describe the primary subject with specific details (person, object, animal, etc.). "
+        "2. DESCRIPTION: Provide key details about the subject's appearance, pose, or characteristics. "
+        "3. ENVIRONMENT: Describe the setting or background with 2-3 specific elements. "
+        "4. MEDIUM: Specify the artistic medium (photography, oil painting, digital art, etc.). "
+        "5. STYLE: Include a clear stylistic reference (realistic, surrealist, minimalist, etc.). "
+        "6. RESOLUTION: Mention high resolution or level of detail. "
+        "7. QUALITY: Indicate the image quality (professional, cinematic, etc.). "
+        "8. LIGHTING: Specify lighting conditions (soft, dramatic, natural, golden hour, etc.). "
+        "Keep your prompt concise and cohesive, focusing on creating a single, clear visual scene. "
+        "Your response should contain only the final prompt with no additional explanations."
         )
 
         user_prompt = (
-            f"Below is content scraped from either a university website or social media post:\n\n"
-            f"{context}\n\n"
-            f"Create an image generation prompt that visualizes this content while following these requirements:\n"
-            f"1. Frame the scene at or related to the American University of Beirut\n"
-            f"2. Incorporate Middle Eastern aesthetic elements\n"
-            f"3. DO NOT generate any text or writing in the image\n"
-            f"4. Focus on visual elements and atmosphere\n"
-            f"5. Identify the content type:\n"
-            f"   - Current news/events: Show the activity/situation as it happens\n"
-            f"   - Past events: Create a representative scene that captures the essence without implying it's current\n"
-            f"   - General information/facts: Illustrate the information visually (like 'Did you know?' content)\n"
-            f"   - Academic content: Show relevant educational settings\n"
-            f"   - Humor/memes: Create visually amusing scenarios related to the content\n\n"
-            f"Your final prompt must include the phrase 'NO TEXT' and emphasize the AUB/Middle Eastern setting."
-        )
+        f"Based on this context: \"{context}\"\n\n"
+        f"Create an image generation prompt that includes all of these elements:\n"
+        f"- Subject: What is the main focus of the image?\n"
+        f"- Description: What specific details should be included about the subject?\n"
+        f"- Environment: What setting or background should appear? \n"
+        f"- Medium: What artistic medium should this resemble?\n"
+        f"- Style: What artistic style should be applied?\n"
+        f"- Resolution: Specify that it should be high-resolution\n"
+        f"- Quality: Indicate the level of professional quality\n"
+        f"- Lighting: What lighting conditions should be present?\n\n"
+        f"Craft these elements into a cohesive, natural-sounding prompt that will generate a clear."
+    )
 
         try:
             completion = self.client.chat.completions.create(
@@ -141,8 +126,164 @@ class ChatGptApi:
             logging.error(f"Unexpected error while generating image prompt: {e}")
             raise
 
+    def generate_image_generation_prompt_funny(self, context: str) -> str:
+        """
+        Generates a humorous and quirky image generation prompt based on the given context.
+        
+        Args:
+            context (str): A description or context that the image should capture.
+        
+        Returns:
+            str: A detailed image generation prompt with a humorous twist.
+        
+        Raises:
+            Exception: If the API request fails.
+        """
+        system_prompt = (
+            "You are a specialized AI image prompt engineer with a quirky sense of humor. Your task is to create whimsical, "
+            "slightly absurd, and playful image prompts that will make viewers smile or laugh. "
+            "Always structure your prompts to include these essential elements, but with a humorous twist: "
+            "1. SUBJECT: Describe the primary subject with specific details, adding unexpected or amusing characteristics. "
+            "2. DESCRIPTION: Provide key details about the subject's appearance, pose, or characteristics that create visual humor. "
+            "3. ENVIRONMENT: Describe a setting or background with 2-3 specific elements that add to the whimsical nature. "
+            "4. MEDIUM: Specify the artistic medium that enhances the quirky feeling (cartoon, claymation, etc.). "
+            "5. STYLE: Include a playful stylistic reference (caricature, pop art, storybook illustration, etc.). "
+            "6. RESOLUTION: Mention high resolution or level of detail. "
+            "7. QUALITY: Indicate the image quality while maintaining the light-hearted tone. "
+            "8. LIGHTING: Specify lighting conditions that enhance the humor (overly dramatic, technicolor, etc.). "
+            "Keep your prompt concise and cohesive, focusing on creating a single, clear visual scene with unexpected elements or "
+            "amusing juxtapositions. Your response should contain only the final prompt with no additional explanations. NO TEXT, NO WRITING, NO WORDS."
+        )
 
-    def generate_caption(self, context: str, prompt_text: str = None, chroma_query: str = None) -> str:
+        user_prompt = (
+            f"Based on this context: \"{context}\"\n\n"
+            f"Create a humorous, quirky image generation prompt that includes all of these elements:\n"
+            f"- Subject: What is the main focus of the image? Add an unexpected or amusing twist.\n"
+            f"- Description: What specific details should be included about the subject to make it funny or quirky?\n"
+            f"- Environment: What setting or background should appear? Include something unexpected or out of place.\n"
+            f"- Medium: What artistic medium would enhance the humorous nature?\n"
+            f"- Style: What whimsical or playful artistic style should be applied?\n"
+            f"- Resolution: Specify that it should be high-resolution\n"
+            f"- Quality: Indicate the level of professional quality while maintaining the playful tone\n"
+            f"- Lighting: What lighting conditions would enhance the quirky nature?\n\n"
+            f"Craft these elements into a cohesive, natural-sounding prompt that will generate a clear, visually appealing image "
+            f"with a humorous or whimsical quality. Make sure to specify NO TEXT, NO WRITING, NO WORDS."
+        )
+        try:
+            completion = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=0.5  # Slightly higher for creative humor/meme content when appropriate
+            )
+
+            if not completion.choices or not completion.choices[0].message.content:
+                raise ValueError("Received an empty response from GPT.")
+
+            generated_prompt = completion.choices[0].message.content.strip()
+            
+            # Ensure "NO TEXT" is in the prompt even if the model fails to include it
+            if "NO TEXT" not in generated_prompt.upper():
+                generated_prompt += " NO TEXT, NO WRITING, NO WORDS."
+                
+            logging.info("Image prompt successfully generated.")
+            logging.info("Context Used: %s", context)
+            logging.info("Generated Prompt: %s", generated_prompt)
+
+            return generated_prompt 
+
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Network error while generating image prompt: {e}")
+            raise
+        except ValueError as e:
+            logging.error(f"Data validation error in image prompt response: {e}")
+            raise
+        except Exception as e:
+            logging.error(f"Unexpected error while generating image prompt: {e}")
+            raise
+
+    def generate_image_generation_prompt_funny(self, context: str) -> str:
+            """
+            Generates an engaging and informal image generation prompt based on the given context.
+            
+            Args:
+                context (str): A description or context that the image should capture.
+            
+            Returns:
+                str: A detailed image generation prompt with an engaging, informal style.
+            
+            Raises:
+                Exception: If the API request fails.
+            """
+            system_prompt = (
+                "You are a specialized AI image prompt engineer with a casual, approachable style. Your task is to create engaging, "
+                "relatable, and informal image prompts that feel authentic and down-to-earth. "
+                "Always structure your prompts to include these essential elements, but with a warm, conversational tone: "
+                "1. SUBJECT: Describe the primary subject with specific details that feel genuine and relatable. "
+                "2. DESCRIPTION: Provide key details about the subject's appearance, pose, or characteristics that capture everyday authenticity. "
+                "3. ENVIRONMENT: Describe a setting or background with 2-3 specific elements that feel familiar and inviting. "
+                "4. MEDIUM: Specify an artistic medium that enhances the casual, approachable feeling. "
+                "5. STYLE: Include a stylistic reference that feels contemporary and relatable (candid photography, casual illustration, etc.). "
+                "6. RESOLUTION: Mention high resolution or level of detail. "
+                "7. QUALITY: Indicate the image quality while maintaining the informal tone. "
+                "8. LIGHTING: Specify lighting conditions that feel natural and authentic. "
+                "Keep your prompt concise and cohesive, focusing on creating a single, clear visual scene that feels like a genuine moment "
+                "rather than a posed or formal scene. Your response should contain only the final prompt with no additional explanations. NO TEXT, NO WRITING, NO WORDS."
+            )
+
+            user_prompt = (
+                f"Based on this context: \"{context}\"\n\n"
+                f"Create an engaging, informal image generation prompt that includes all of these elements:\n"
+                f"- Subject: What is the main focus of the image? Make it feel authentic and relatable.\n"
+                f"- Description: What specific details should be included about the subject to capture a genuine moment?\n"
+                f"- Environment: What casual, everyday setting or background should appear?\n"
+                f"- Medium: What artistic medium would enhance the informal, approachable feeling?\n"
+                f"- Style: What contemporary, relatable artistic style should be applied?\n"
+                f"- Resolution: Specify that it should be high-resolution\n"
+                f"- Quality: Indicate the level of professional quality while maintaining the casual feel\n"
+                f"- Lighting: What natural, authentic lighting conditions would enhance the scene?\n\n"
+                f"Craft these elements into a cohesive, natural-sounding prompt that will generate a clear, visually appealing image "
+                f"with an engaging, informal quality. Make sure to specify NO TEXT, NO WRITING, NO WORDS."
+            )
+            try:
+                completion = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    temperature=0.5  # Slightly higher for creative humor/meme content when appropriate
+                )
+
+                if not completion.choices or not completion.choices[0].message.content:
+                    raise ValueError("Received an empty response from GPT.")
+
+                generated_prompt = completion.choices[0].message.content.strip()
+                
+                # Ensure "NO TEXT" is in the prompt even if the model fails to include it
+                if "NO TEXT" not in generated_prompt.upper():
+                    generated_prompt += " NO TEXT, NO WRITING, NO WORDS."
+                    
+                logging.info("Image prompt successfully generated.")
+                logging.info("Context Used: %s", context)
+                logging.info("Generated Prompt: %s", generated_prompt)
+
+                return generated_prompt 
+
+            except requests.exceptions.RequestException as e:
+                logging.error(f"Network error while generating image prompt: {e}")
+                raise
+            except ValueError as e:
+                logging.error(f"Data validation error in image prompt response: {e}")
+                raise
+            except Exception as e:
+                logging.error(f"Unexpected error while generating image prompt: {e}")
+                raise
+
+
+    def generate_caption(self, context: str, chroma_query: str = None) -> str:
         """
         Generates a creative caption based on the given context, prompt text, and query.
 
@@ -179,10 +320,7 @@ class ChatGptApi:
 
         # Combine available information for more comprehensive context
         combined_context = "Context from database:\n" + context
-        
-        if prompt_text:
-            combined_context += "\n\nPrompt used for image generation:\n" + prompt_text
-        
+
         if chroma_query:
             combined_context += "\n\nOriginal search query:\n" + chroma_query
 
@@ -247,37 +385,31 @@ class ChatGptApi:
             Exception: If the API request fails.
         """
         system_prompt = (
-            "You create video generation prompts with these mandatory requirements:\n"
-            "1. THEME: Always incorporate elements of the American University of Beirut and Middle Eastern aesthetics, "
-            "   architecture, landscapes, or cultural elements regardless of the specific content.\n"
-            "2. NO TEXT: Always include 'NO TEXT, NO WRITING, NO WORDS' in your prompt to ensure the video generator "
-            "   doesn't include any text, captions, signs, or written elements.\n"
-            "3. CONTEXT ADHERENCE: Base your prompt only on the factual information from the provided context.\n"
-            "4. MOTION & FLOW: Since this is for video generation, emphasize motion, transitions, and flow. "
-            "   Describe how elements should move or change throughout the video sequence.\n"
-            "5. CONTENT-SPECIFIC RULES:\n"
-            "   - FOR NEWS: Focus on depicting key visual elements with subtle motion and atmosphere.\n"
-            "   - FOR EVENTS: Emphasize dynamic activity, crowd movements, and event progression.\n"
-            "   - FOR GENERAL INFORMATION: Create illustrative scenes with gentle camera movement to highlight details.\n"
-            "   - FOR ACADEMIC CONTENT: Show academic settings with natural activity like students moving, pages turning, etc.\n"
-            "6. MIDDLE EASTERN ELEMENTS: Incorporate authentic Middle Eastern architectural elements, colors, "
-            "   patterns, landscapes, or cultural references where appropriate.\n"
-            "7. BREVITY: Keep the prompt concise as video generators work best with clear, focused descriptions.\n"
-            "8. ACCURACY: Never invent details not mentioned in the context, but do apply the AUB/Middle Eastern theme."
-        )
+    "You are a specialized AI video prompt engineer. Your task is to create clear, cinematic, and realistic video prompts. "
+    "Always structure your prompts around these essential elements: "
+    "1. MEDIUM: Specify exactly one shot type (close-up, medium, wide-angle). "
+    "2. SUBJECT: Describe a single, clear subject with specific details about appearance. "
+    "3. SUBJECT MOTION: Include one simple, clear motion for the subject. "
+    "4. SCENE: Describe the environment with 2-3 specific elements. "
+    "5. SCENE MOTION: Add one atmospheric element (rain, wind, etc.) if appropriate. "
+    "6. CAMERA QUALITY: Mention that it's shot on a high-quality cinematic camera. "
+    "7. CAMERA MOTION: Include only one type of camera motion (tracking, panning, static). "
+    "8. AESTHETICS: Specify lighting condition, time of day, and overall color palette. "
+    "Keep your prompt under 6 sentences. Do not use brackets or placeholders. Focus on creating a cohesive scene with a single subject and limited action. "
+    "Your response should contain only the final prompt with no additional explanations."
+)
 
         user_prompt = (
-            f"Below is content scraped from a university website or social media post:\n\n"
-            f"{context}\n\n"
-            f"Create a video generation prompt that visualizes this content while following these requirements:\n"
-            f"1. Frame the scene at or related to the American University of Beirut\n"
-            f"2. Incorporate Middle Eastern aesthetic elements\n"
-            f"3. DO NOT generate any text or writing in the video\n"
-            f"4. Emphasize motion, dynamic elements, and visual flow\n"
-            f"5. Keep the prompt concise and focused (50-70 words maximum)\n"
-            f"6. Include specific motion directions (camera movements, transitions, etc.)\n"
-            f"Your final prompt must include the phrase 'NO TEXT' and emphasize the AUB/Middle Eastern setting."
-        )
+    f"Based on this context: \"{context}\"\n\n"
+    f"Create a cinematic video prompt that: "
+    f"- Features a single, clear subject "
+    f"- Uses one type of shot (close-up, medium, or wide) "
+    f"- Has simple, focused subject motion "
+    f"- Takes place in a specific time of day with clear lighting "
+    f"- Includes one type of camera motion at most "
+    f"- Creates a cohesive visual atmosphere "
+    f"The prompt should be 2-3 sentences maximum and avoid mentioning multiple characters or simultaneous actions."
+)
 
         try:
             completion = self.client.chat.completions.create(

@@ -42,15 +42,6 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 # Create tables if not created
 Base.metadata.create_all(bind=engine)
 
-def validate_request(data):
-    if not isinstance(data, dict):
-        return "Invalid JSON format"
-    if "context" not in data or "style" not in data:
-        return "Missing required fields: 'context' and 'style'"
-    if not isinstance(data["context"], str) or not isinstance(data["style"], str):
-        return "Invalid data type for 'context' or 'style'"
-    return None
-
 @app.route("/generate-image/<int:job_id>", methods=["POST"])
 def generate_image_route(job_id):
     """
@@ -116,7 +107,7 @@ def generate_image_route(job_id):
             f"Context: {context}\nOriginal Question: {chroma_query}"
         )
         # Step 7: Ask ChatGPT to Recommend a Style
-        allowed_styles = ["realistic", "flux-dev"]
+        allowed_styles = ["flux-dev"]
 
         random_style = random.choice(allowed_styles)
         logging.info("Random Style: %s", random_style)
@@ -329,7 +320,6 @@ def monitor_video_route(job_id):
     If the video is still processing, just return the current status.
     """
     db_session = SessionLocal()
-    
     try:
         # Step 1: Query the monitoring job by ID
         job = db_session.query(Job).filter(Job.id == job_id).first()
@@ -453,7 +443,7 @@ def monitor_video_route(job_id):
 def test_image_prompt_route():
     """
     Test route to generate an image prompt based on a query.
-    Expects a JSON payload with a "query" field.
+    Expects a JSON payload with a "context" and query field.
     Returns the generated image prompt without actually creating an image.
     """
     data = request.json
@@ -461,40 +451,24 @@ def test_image_prompt_route():
     
     try:
         # Validate the request
-        if not data or "query" not in data:
-            return jsonify({"error": "Request must include a 'query' field"}), 400
+        if not data or "context" not in data:
+            return jsonify({"error": "Request must include a 'context' field"}), 400
             
+        context = data["context"]
         query = data["query"]
-        prompt_text = data.get("prompt_text", "Create a visually appealing scene at the American University of Beirut that showcases [context_elements]. Include distinctive Middle Eastern architectural features, natural elements, and authentic campus atmosphere.")
-        
-        # Generate embedding for the query
-        question_embedding = chatgpt_api.get_openai_embedding(query)
-        
-        # Query ChromaDB
-        results = collection.query(
-            query_embeddings=[question_embedding],
-            n_results=3,  # Get top 3 results
-            where={"id": {"$ne": "none"}},
-            include=["documents", "distances"]
-        )
-        
-        # Process results
-        if "documents" not in results or not results["documents"]:
-            return jsonify({"error": "No relevant documents found in vector database."}), 404
-
-        retrieved_docs = results["documents"][0]
-        context = "\n".join(retrieved_docs) if retrieved_docs else "No context available."
-        
+         
         # Generate the image prompt
         image_prompt = chatgpt_api.generate_image_generation_prompt(
-            f"Prompt: {prompt_text}\nContext: {context}\nOriginal Question: {query}"
+            f"Context: {context}\nOriginal Question: {query}"
         )
+
+        caption = chatgpt_api.generate_caption(context=context, chroma_query=query)
         
         # Return the results
         return jsonify({
             "query": query,
-            "retrieved_context": context,
             "generated_image_prompt": image_prompt,
+            "generated_caption" : caption
         }), 200
         
     except Exception as e:
@@ -502,5 +476,60 @@ def test_image_prompt_route():
         return jsonify({"error": str(e)}), 400
     finally:
         db_session.close()
+
+@app.route("/test-chroma-query", methods=["POST"])
+def test_chroma_query_route():
+    """
+    Test route to test chroma query.
+    Expects a JSON payload with a "query" field.
+    Returns the generated top 3 similar queries without actually creating an image.
+    """
+    data = request.json
+    db_session = SessionLocal()
+    try:
+        # Validate the request
+        if not data or "query" not in data:
+            return jsonify({"error": "Request must include a 'query' field"}), 400
+        
+        query = data["query"]
+        
+        # Generate embedding for the query
+        question_embedding = chatgpt_api.get_openai_embedding(query)
+        
+        # Query ChromaDB
+        results = collection.query(
+            query_embeddings=[question_embedding],
+            n_results=1,  # Get top 3 results
+            where={"id": {"$ne": "none"}},
+            include=["documents", "distances"]
+        )
+        
+        # Process results
+        if "documents" not in results or not results["documents"]:
+            return jsonify({"error": "No relevant documents found in vector database."}), 404
+        
+        retrieved_docs = results["documents"][0]
+        distances = results["distances"][0]
+        
+        # Create a list of document results with separate fields
+        docs_results = []
+        for i, doc in enumerate(retrieved_docs):
+            docs_results.append({
+                "document": doc,
+                "distance": distances[i]
+            })
+        
+        # Return the results with each document as a separate entry
+        return jsonify({
+            "query": query,
+            "results": docs_results
+        }), 200
+        
+    except Exception as e:
+        logging.error(f"Error in test-image-prompt: {str(e)}")
+        return jsonify({"error": str(e)}), 400
+    finally:
+        db_session.close()
+
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=3002)
