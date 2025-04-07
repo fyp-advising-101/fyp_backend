@@ -103,7 +103,7 @@ def generate_image_route(job_id):
         context = "\n".join(retrieved_docs) if retrieved_docs else "No context available."
 
         # Step 6: Generate a More Detailed AI Image Prompt Using ChatGPT
-        image_prompt = chatgpt_api.generate_image_generation_prompt(
+        image_prompt = chatgpt_api.generate_image_generation_prompt_funny(
             f"Context: {context}\nOriginal Question: {chroma_query}"
         )
         # Step 7: Ask ChatGPT to Recommend a Style
@@ -132,7 +132,7 @@ def generate_image_route(job_id):
 
         media_blob_url = upload_result.get("blob_url")
 
-        caption = chatgpt_api.generate_caption(context, image_prompt, chroma_query)
+        caption = chatgpt_api.generate_caption(context, chroma_query)
 
         # Step 10: Update the Current Job Status
         job.status = 2
@@ -458,14 +458,22 @@ def test_image_prompt_route():
         query = data["query"]
          
         # Generate the image prompt
-        image_prompt = chatgpt_api.generate_image_generation_prompt(
+        image_prompt_funny = chatgpt_api.generate_image_generation_prompt_funny(
             f"Context: {context}\nOriginal Question: {query}"
         )
 
+        image_prompt_informal = chatgpt_api.generate_image_generation_prompt_informal(
+            f"Context: {context}\nOriginal Question: {query}"
+        )
+
+        #caption = chatgpt_api.generate_caption(context=context, chroma_query=query)
+        
         # Return the results
         return jsonify({
             "query": query,
-            "generated_image_prompt": image_prompt,
+            "generated_image_prompt_funny": image_prompt_funny,
+            "generated_image_prompt_informal": image_prompt_informal,
+          #  "generated_caption" : caption
         }), 200
         
     except Exception as e:
