@@ -536,5 +536,112 @@ def test_chroma_query_route():
     finally:
         db_session.close()
 
+@app.route("/generate-meme/<int:job_id>", methods=["POST"])
+def generate_meme_route(job_id):
+    """
+    Generate a meme using the meme.py script by:
+    - Retrieving the related media_gen_option and category_option
+    - Querying ChromaDB to get relevant context
+    - Using ChatGPT to generate meme content
+    - Calling the meme generation script
+    - Uploading the generated meme to Azure Blob Storage
+    - Creating jobs to post the meme to social media platforms
+    """
+    db_session = SessionLocal()
+    job = None
+    try:
+        # Step 1: Query the Job by ID
+        job = db_session.query(Job).filter(Job.id == job_id).first()
+        if not job:
+            raise Exception("Job not found")
+
+        # Verify that the job has the correct task type and status
+        if job.task_name.lower() != "create meme" or job.status != 1:
+            raise Exception("Job is not valid for meme generation")
+
+
+        # Step 6: Use ChatGPT to generate meme content
+        meme_content = chatgpt_api.generate_meme_content()
+
+        # Step 7: Use MemeService to generate a meme
+        from media_gen.apis.meme_service import MemeService
+        
+        try:
+            # Initialize MemeService and generate the meme
+            meme_service = MemeService()
+            image_path = meme_service.generate_meme(
+                sentence=meme_content["sentence"],
+                roast_level=meme_content["roast_level"]
+            )
+            logging.info("Meme generated at path: %s", image_path)
+        except Exception as e:
+            logging.exception("Error while generating meme")
+            raise
+
+        # Step 8: Upload the Generated Meme to Azure Blob Storage
+        upload_result = azureBlob.upload_file(image_path, f"memes/meme", "image/jpeg")
+        media_blob_url = upload_result.get("blob_url")
+
+        # Generate a caption for the meme
+        caption = meme_content["sentence"]
+
+        # Step 9: Update the Current Job Status
+        job.status = 2  # Completed
+        job.updated_at = datetime.datetime.now()
+        db_session.commit()
+
+        # Step 10: Create a Media Asset entry for the meme
+        new_asset = MediaAsset(
+            media_blob_url=media_blob_url,
+            caption=caption,
+            media_type='meme'
+        )
+        db_session.add(new_asset)
+        db_session.commit()
+
+        # Step 11: Create new jobs to post the meme to social media
+        insta_job = Job(
+            task_name="post image instagram",
+            task_id=new_asset.id,
+            scheduled_date=(datetime.datetime.now() - timedelta(days=1)).date(),
+            status=0,
+            error_message=None,
+            created_at=datetime.datetime.now().date(),
+            updated_at=datetime.datetime.now().date()
+        )
+        db_session.add(insta_job)
+
+        whats_job = Job(
+            task_name="post image whatsapp",
+            task_id=new_asset.id,
+            scheduled_date=(datetime.datetime.now() - timedelta(days=1)).date(),
+            status=0,
+            error_message=None,
+            created_at=datetime.datetime.now().date(),
+            updated_at=datetime.datetime.now().date()
+        )
+        db_session.add(whats_job)
+        
+        db_session.commit()
+
+        return jsonify({
+            "media_asset_id": new_asset.id,
+            "meme_sentence": meme_content["sentence"],
+            "roast_level": meme_content["roast_level"],
+            "job_id": job.id,
+            "insta_job_id": insta_job.id,
+            "whats_job_id": whats_job.id
+        }), 200
+
+    except Exception as e:
+        db_session.rollback()
+        if job:
+            job.status = -1  # Error
+            job.error_message = str(e)
+            db_session.commit()
+        return jsonify({"error": str(e)}), 400
+    finally:
+        db_session.close()
+
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=3002)
