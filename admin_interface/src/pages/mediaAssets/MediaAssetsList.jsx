@@ -217,7 +217,7 @@ function MediaAssetsList() {
         <DialogContent>
           {previewAsset && (
             <Card>
-              {previewAsset.media_type === 'image' ? (
+              {previewAsset.media_type === 'image' || previewAsset.media_type === 'meme' ? (
                 <CardMedia
                   component="img"
                   image={previewAsset.media_blob_url}

@@ -41,7 +41,7 @@ function JobsForm() {
     setValue('task_id', '');
     
     // Set task ID type based on task name
-    if (taskName === 'create image' || taskName === 'create video' ) {
+    if (taskName === 'create image' || taskName === 'create video' || taskName === 'create meme' ) {
       setTaskIdType('mediaGenOption');
     } else if (taskName === 'web scrape' || taskName === 'insta scrape') {
       setTaskIdType('scrapeTarget');
@@ -98,7 +98,7 @@ function JobsForm() {
         job.scheduled_date = new Date(job.scheduled_date);
         
         // Set task ID type based on task name
-        if (job.task_name === 'create image' || taskName === 'create video') {
+        if (job.task_name === 'create image' || taskName === 'create video' || taskName === 'create meme') {
           setTaskIdType('mediaGenOption');
         } else if (job.task_name === 'web scrape' || job.task_name === 'insta scrape') {
           setTaskIdType('scrapeTarget');
@@ -194,6 +194,7 @@ function JobsForm() {
                       <MenuItem value="insta scrape">Instagram Scrape</MenuItem>
                       <MenuItem value="create image">Create Image</MenuItem>
                       <MenuItem value="create video">Create Video</MenuItem>
+                      <MenuItem value="create meme">Create Meme</MenuItem>
                       <MenuItem value="monitor video">Monitor Video</MenuItem>
                       <MenuItem value="post image whatsapp">Post Image to WhatsApp</MenuItem>
                       <MenuItem value="post image instagram">Post Image to Instagram</MenuItem>

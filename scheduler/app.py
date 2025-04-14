@@ -107,7 +107,9 @@ def initiate_tasks():
             elif "post video whatsapp" == task_lower:
                 url_to_call = f"http://localhost:3000/post-video/{job.id}"
             elif "post video instagram" == task_lower:
-                    url_to_call = f"http://localhost:3003/post-video/{job.id}"       
+                    url_to_call = f"http://localhost:3003/post-video/{job.id}"      
+            elif "create meme" == task_lower:
+                    url_to_call = f"http://localhost:3002/generate-meme/{job.id}" 
             else:
                 logging.info("No matching endpoint for task: %s", job.task_name)
                 continue

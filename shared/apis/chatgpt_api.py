@@ -527,3 +527,121 @@ class ChatGptApi:
         except Exception as e:
             logging.error(f"Unexpected error while generating caption: {e}")
             raise
+    
+    def generate_meme_content(self) -> dict:
+        """
+        Generates meme content based on the given context. This includes a funny sentence
+        about university life and a roast level (wholesome, spicy, or savage).
+        
+        Args:
+            context (str): The context or description from the ChromaDB results.
+            chroma_query (str, optional): The original query used to search ChromaDB.
+        
+        Returns:
+            dict: A dictionary containing the sentence and roast_level.
+            
+        Raises:
+            Exception: If the API request fails.
+        """
+        system_prompt = """
+        You are a creative assistant generating meme content about student life at the American University of Beirut (AUB) in Lebanon.
+
+        Your task is to produce a **funny and relatable fun fact** about **university life specifically at AUB**, or about university life in general. 
+        - Do **not** make up facts that are not true or verifiable about AUB. 
+        - Use well-known aspects of AUB life.
+        - The sentence should be **short**, **factual**, and **stand alone without context**, like:
+            1) My friend eats at Bliss everyday  
+            2) Jafet is always full  
+            3) You always run into someone you know on the stairs near West Hall
+        - The sentence that you pick must revolve around one of the following categories:
+            Embodies extreme carelessness and a sense of resignation
+            Embodies a feeling of disappointment and dissatisfaction	
+            Which signals a moment of pause or realization to a questionable or surprising situation	
+            Embodies excitement, anxiousness & happiness	
+            Evokes a sense of confusion, disbelief or discomfort	
+            Embodies a sense of frustration with someone or something annoying that happens repeatedly	
+            Often used to express relatable moments of emotional distress or humorous situations where one feels overwhelmed.	
+            Often used to represent a sense of relaxation, satisfaction, or bliss	
+            Often used as a reaction to something extremely disgusting, revolting, repulsive or irritating	
+            Often used humorously to express moments of awkward or insincere congratulations	
+            Often used to express feelings satisfaction or accomplishment	
+            Used to mock a situation or person.	
+            This meme is used to display situations where someone is trying to hide their pain or discomfort, but failing miserably.	
+            This meme is used to signal a knowing agreement or acknowledgement of a situation.			
+            Often used to humorously represent moments of anxiety, stress & nervousness	often used in a humorous context to question or challenge someone's statement or decision	
+        
+        ⚠️ Do NOT write jokes, punchlines, or commentary. Just the **fact**. 
+        These facts will be sent to a separate joke generator later.
+        - Avoid writing things like:
+        'Finding an empty spot in Jafet at exam time is like winning the lottery.'
+        because this sentence is a joke on its own, instead, it can be substituted with: 'Jafet is too crowded during finals'.
+        
+        Also, choose a suitable roast level for the fact. The roast level must be one of the following options:
+        - wholesome
+        - spicy
+        - savage
+
+        Return your response as a **JSON object** exactly in the following format:
+        {
+            "sentence": "<insert your fact here>",
+            "roast_level": "<wholesome | spicy | savage>"
+            "category": "<which category you used>"
+        }
+        
+        Based on the context and query provided, generate a relatable fact about university life.
+        """
+        
+        user_prompt = (
+            f"Based on the following information about university life:\n\n"
+            f"Generate meme content about university life. Your response should contain:\n"
+            f"1. A short, relatable, factual statement about university life\n"
+            f"2. A roast level (wholesome, spicy, or savage)\n"
+            f"3. The category the statement fits into\n\n"
+        )
+        
+        try:
+            completion = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=1.3,
+                max_tokens=100,
+                response_format={"type": "json_object"}
+            )
+            
+            if not completion.choices or not completion.choices[0].message.content:
+                raise ValueError("Received an empty response from GPT.")
+            
+            # Parse the JSON response
+            import json
+            response_content = completion.choices[0].message.content.strip()
+            meme_content = json.loads(response_content)
+            
+            # Validate the response format
+            required_keys = ["sentence", "roast_level"]
+            for key in required_keys:
+                if key not in meme_content:
+                    raise ValueError(f"Response missing required key: {key}")
+            
+            # Ensure roast level is valid
+            valid_levels = ["wholesome", "spicy", "savage"]
+            if meme_content["roast_level"].lower() not in valid_levels:
+                meme_content["roast_level"] = "wholesome"  # default if not valid
+            
+            logging.info("Meme content successfully generated.")
+            logging.info("Generated Sentence: %s", meme_content["sentence"])
+            logging.info("Roast Level: %s", meme_content["roast_level"])
+            
+            return meme_content
+            
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Network error while generating meme content: {e}")
+            raise
+        except ValueError as e:
+            logging.error(f"Data validation error in meme content response: {e}")
+            raise
+        except Exception as e:
+            logging.error(f"Unexpected error while generating meme content: {e}")
+            raise
