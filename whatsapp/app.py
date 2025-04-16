@@ -20,6 +20,17 @@ from shared.database import SessionLocal
 from whatsapp.langchain_manager import LangChainManager
 import threading
 
+for handler in logging.root.handlers[:]:
+    logging.root.removeHandler(handler)
+    
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    filename="app.log",  # This sends logs to the file
+    filemode="a"
+)
+
 
 app = Flask(__name__)
 
@@ -42,14 +53,6 @@ collection = vector_client.get_collection(name="aub_embeddings",
         api_key=openai_api_key,
         model_name="text-embedding-3-large")
         )
-
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    filename="app.log",  # This sends logs to the file
-    filemode="a"
-)
 
 def run_async_in_thread(coro):
     asyncio.run(coro)

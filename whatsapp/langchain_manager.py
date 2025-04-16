@@ -6,6 +6,9 @@ from langchain.memory import ConversationBufferWindowMemory
 from langchain.prompts import MessagesPlaceholder
 import re
 
+for handler in logging.root.handlers[:]:
+    logging.root.removeHandler(handler)
+
 logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -153,8 +156,10 @@ class LangChainManager:
         The agent will automatically leverage conversation memory and call the retrieval tool as needed.
         """
         try:
+            logging.info("Received message from "+ str(user_phone_number) +": "+str(message_text))
             agent = self.get_user_agent(user_phone_number, collection)
             response = agent.run(message_text)
+            logging.info("Responded to message from "+ str(user_phone_number) +": \n Original message: "+str(message_text)+"\n Response: "+str(response))
             return response
         except ValueError as e:
             response = str(e)
