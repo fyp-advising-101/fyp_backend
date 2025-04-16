@@ -546,17 +546,17 @@ class ChatGptApi:
         system_prompt = """
         You are a creative assistant generating meme content about student life at the American University of Beirut (AUB) in Lebanon.
 
-        Your task is to produce a **funny and relatable fun fact** about **university life specifically at AUB**, or about university life in general. 
-        - Do **not** make up facts that are not true or verifiable about AUB. 
+        Your task is to produce a *funny and relatable fun fact* about *university life specifically at AUB*, or about university life in general. 
+        - Do *not* make up facts that are not true or verifiable about AUB. 
         - Use well-known aspects of AUB life.
-        - The sentence should be **short**, **factual**, and **stand alone without context**, like:
+        - The sentence should be *short, **factual, and **stand alone without context*, like:
             1) My friend eats at Bliss everyday  
             2) Jafet is always full  
-            3) You always run into someone you know on the stairs near West Hall
+            3) My friend fails physics
         - The sentence that you pick must revolve around one of the following categories:
             Embodies extreme carelessness and a sense of resignation
             Embodies a feeling of disappointment and dissatisfaction	
-            Which signals a moment of pause or realization to a questionable or surprising situation	
+            Which signals a moment of pause or realization to a questionable or surprising sutiation	
             Embodies excitement, anxiousness & happiness	
             Evokes a sense of confusion, disbelief or discomfort	
             Embodies a sense of frustration with someone or something annoying that happens repeatedly	
@@ -569,26 +569,24 @@ class ChatGptApi:
             This meme is used to display situations where someone is trying to hide their pain or discomfort, but failing miserably.	
             This meme is used to signal a knowing agreement or acknowledgement of a situation.			
             Often used to humorously represent moments of anxiety, stress & nervousness	often used in a humorous context to question or challenge someone's statement or decision	
+
         
-        ⚠️ Do NOT write jokes, punchlines, or commentary. Just the **fact**. 
+        ⚠️ Do NOT write jokes, punchlines, or commentary. Just the *fact*. 
         These facts will be sent to a separate joke generator later.
         - Avoid writing things like:
         'Finding an empty spot in Jafet at exam time is like winning the lottery.'
         because this sentence is a joke on its own, instead, it can be substituted with: 'Jafet is too crowded during finals'.
-        
         Also, choose a suitable roast level for the fact. The roast level must be one of the following options:
         - wholesome
         - spicy
         - savage
 
-        Return your response as a **JSON object** exactly in the following format:
+        Return your response as a *JSON object* exactly in the following format:
         {
             "sentence": "<insert your fact here>",
             "roast_level": "<wholesome | spicy | savage>"
             "category": "<which category you used>"
         }
-        
-        Based on the context and query provided, generate a relatable fact about university life.
         """
         
         user_prompt = (
