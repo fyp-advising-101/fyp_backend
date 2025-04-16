@@ -16,9 +16,6 @@ class ImagineArtAI:
         self.api_key = api_key
         self.base_url = "https://api.vyro.ai/v2"
 
-
-    
-
     def generate_image(
         self,
         prompt: str,

@@ -152,7 +152,7 @@ function MediaCategoryOptionsList() {
                 </TableCell>
               </TableRow>
             ) : (
-              categoryOptions.map((option) => (
+              categoryOptions.slice().reverse().map((option) => (
                 <TableRow key={option.id}>
                   <TableCell>{option.id}</TableCell>
                   <TableCell>{option.title}</TableCell>

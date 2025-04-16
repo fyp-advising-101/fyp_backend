@@ -81,5 +81,60 @@ def post_image_route(job_id):
     finally:
         db_session.close()
 
+@app.route("/post-video/<int:job_id>", methods=["POST"])
+def post_video_instagram(job_id):
+    """
+    Route to post a video to Instagram.
+    - Expects a JSON payload with an optional "caption".
+    - Queries the job with the given job_id and verifies that its task_name is "post video instagram" and its status is 1.
+    - Retrieves the media asset using the job's task_id.
+    - Calls the Instagram API to post the video.
+    - Updates the job's status to 2 and commits the changes.
+    In case of an error, updates the job status to -1 and records the error message.
+    """
+    db_session = SessionLocal()
+    job = None
+    try:
+        # Query the job by job_id
+        job = db_session.query(Job).filter(Job.id == job_id).first()
+        if not job:
+            raise Exception("Job not found")
+        
+        # Validate that the job is for posting a video and is pending (status 1)
+        if job.task_name.lower() != "post video instagram" or job.status != 1:
+            raise Exception("Job is not valid for posting a video")
+
+        asset_id = job.task_id
+        asset = db_session.query(MediaAsset).filter_by(id=asset_id).first()
+        if not asset:
+            raise Exception("Asset not found")
+        
+        if not asset.media_blob_url or not asset.caption:
+            raise Exception("No URL or Caption for this asset")
+
+        # Refresh the Instagram access token before posting
+        instagram_api.refresh_access_token()
+
+        # Call the Instagram API to upload and publish the video
+        instagram_api.upload_and_publish_video(asset.media_blob_url, caption=asset.caption)
+        
+        # Update the job status to indicate it has been processed (status 2)
+        job.status = 2
+        job.updated_at = datetime.datetime.now().date()
+        db_session.commit()
+
+        return jsonify({"message": "Video posted successfully to Instagram", "job_id": job.id}), 200
+
+    except Exception as e:
+        # If there was an error, update the job status to indicate failure
+        if job:
+            job.status = -1  # Error status
+            job.error_message = str(e)[:255]  # Limit error message to field size
+            db_session.commit()
+        db_session.rollback()
+        return jsonify({"error": str(e)}), 400
+    finally:
+        db_session.close()
+
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=3003)

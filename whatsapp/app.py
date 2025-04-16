@@ -161,7 +161,7 @@ def post_image_whatsapp(job_id):
         
         # Call the WhatsApp API to send the template message to each subscribed user
         for user in users:
-            whatsapp_api.send_template_message(user.phone_number, category, asset.media_blob_url, asset.caption)
+            whatsapp_api.send_image(user.phone_number, category, asset.media_blob_url, asset.caption)
         
         # Update job status to indicate successful processing (status 2)
         job.status = 2
@@ -169,6 +169,65 @@ def post_image_whatsapp(job_id):
         db_session.commit()
         
         return jsonify({"message": "Image posted successfully", "job_id": job.id}), 200
+
+    except Exception as e:
+        db_session.rollback()
+        return jsonify({"error": str(e)}), 400
+    finally:
+        db_session.close()
+
+# Add this to whatsapp/app.py
+@app.route("/post-video/<int:job_id>", methods=["POST"])
+def post_video_whatsapp(job_id):
+    """
+    Route to post a video to WhatsApp.
+    - Optionally accepts a JSON payload with a "category" to filter user subscriptions.
+    - Queries the job with the given job_id and verifies that its task_name is "post video whatsapp" and its status is 1.
+    - Retrieves the media asset using the job's task_id.
+    - Validates that the asset has both a media_blob_url and caption.
+    - Fetches user subscriptions for the provided (or default) category.
+    - Calls the WhatsApp API to send a video message with the asset's details.
+    - Updates the job's status to 2 and commits the changes.
+    In case of an error, rolls back the transaction and returns an error message.
+    """
+    db_session = SessionLocal()
+    try:
+        # Query the job by job_id
+        job = db_session.query(Job).filter(Job.id == job_id).first()
+        if not job:
+            raise Exception("Job not found")
+        
+        # Validate that the job is for posting a video and is pending (status 1)
+        if job.task_name.lower() != "post video whatsapp" or job.status != 1:
+            raise Exception("Job is not valid for posting a video")
+        
+        # Retrieve the media asset using the job's task_id (asset id)
+        asset_id = job.task_id
+        asset = db_session.query(MediaAsset).filter_by(id=asset_id).first()
+        if not asset:
+            raise Exception("Asset not found")
+        
+        if not asset.media_blob_url or not asset.caption:
+            raise Exception("Asset missing media blob URL or caption")
+        
+        # Get category from payload if provided, default to "sports"
+        category = "sports"
+        
+        # Query user subscriptions for the given category
+        users = db_session.query(UserSubscriptions).filter(UserSubscriptions.category == category).all()
+        if not users:
+            raise Exception("No user subscriptions found for category: " + category)
+        
+        # Call the WhatsApp API to send the video message to each subscribed user
+        for user in users:
+            whatsapp_api.send_video(user.phone_number, asset.media_blob_url, asset.caption)
+        
+        # Update job status to indicate successful processing (status 2)
+        job.status = 2
+        job.updated_at = datetime.datetime.now().date()
+        db_session.commit()
+        
+        return jsonify({"message": "Video posted successfully", "job_id": job.id}), 200
 
     except Exception as e:
         db_session.rollback()

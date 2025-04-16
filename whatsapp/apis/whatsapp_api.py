@@ -43,12 +43,11 @@ class WhatsAppAPI:
             }
         )
 
-    def send_template_message(self, phone_number, template, image_url, caption):
+    def send_image(self, phone_number, template, image_url, caption):
         """
-        Sends a WhatsApp template message to a user.
+        Sends a WhatsApp message with an image to a user.
 
         Parameters:
-        - business_phone_number_id (str): The WhatsApp Business phone number ID.
         - phone_number (str): The recipient's phone number in international format.
         - template (str): The name of the WhatsApp message template.
         - image_url (str): URL of the image to be included in the message header.
@@ -122,4 +121,50 @@ class WhatsAppAPI:
             return {"error": "An unexpected error occurred", "details": str(err)}, 500
         
 
-        
+    def send_video(self, phone_number, video_url, caption):
+        """
+        Sends a WhatsApp message with a video to a user.
+
+        Parameters:
+        - phone_number (str): The recipient's phone number in international format.
+        - video_url (str): URL of the video to be sent.
+        - caption (str): Caption text for the video.
+
+        Returns:
+        - dict: Response from the WhatsApp API.
+        - int: HTTP status code of the response.
+        """
+        url = f"https://graph.facebook.com/v22.0/{self.business_phone_number_id}/messages"
+
+        headers = {
+            "Authorization": f"Bearer {self.graph_api_token}",
+            "Content-Type": "application/json"
+        }
+
+        data = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": phone_number,
+            "type": "video",
+            "video": {
+                "link": video_url,
+                "caption": caption
+            }
+        }
+
+        try:
+            response = requests.post(url, headers=headers, json=data)
+            response.raise_for_status()
+            return response.json(), response.status_code
+        except requests.exceptions.HTTPError as http_err:
+            logging.error(f"HTTP error occurred: {http_err} - Response: {response.text}")
+            return {"error": "HTTP error occurred", "details": str(http_err)}, response.status_code
+        except requests.exceptions.ConnectionError:
+            logging.error("Connection error occurred")
+            return {"error": "Connection error occurred"}, 503
+        except requests.exceptions.Timeout:
+            logging.error("Request timed out")
+            return {"error": "Request timed out"}, 504
+        except requests.exceptions.RequestException as err:
+            logging.error(f"Unexpected error: {err}")
+            return {"error": "An unexpected error occurred", "details": str(err)}, 500
